@@ -1,11 +1,11 @@
-#######################################################
-### Codes for analyzing the BCI 50-ha plot data     ### 
-### and making figures for the BCI 100 years volume ###
-### Author: Camille Piponiot, github.com/cpiponiot  ###
-#######################################################
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
+# Codes for analyzing the BCI 50-ha plot data and #
+# making figures for the BCI 100 years volume     #
+# Author: Camille Piponiot, github.com/cpiponiot  #
+#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 
 # list of pacakges needed to run this code
-req_packages <- c("rdryad", "data.table", "ggplot2", "utils")
+req_packages <- c("rdryad", "data.table", "ggplot2", "utils", "BIOMASS")
 
 # packages that are not yet installed on the computer
 ins_packages <-  req_packages[!(req_packages %in% rownames(installed.packages()))]
@@ -54,10 +54,24 @@ names(census_list) <- data.table::tstrsplit(bci_stem, "\\.")[[2]]
 df_census <- data.table::rbindlist(census_list, fill = TRUE, idcol = "censusID")
 
 
+#### Figure 1 - AGB estimation and potential sources of uncertainty ####
 
+# create data table for illustrating different allometric equations at the
+# individual tree level
+dfallom <- data.table(expand.grid(dbh = 1:200, wd = c(0.4, 0.8)))
 
+# Chave et al 2014 allometric equation, no height information
+dfallom[, chave14_e := computeAGB(D = dbh, WD = wd, coord = c(-79.8461, 9.1543))]
 
+# Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2014
+dfallom[, h  := 58.0 * dbh ^ 0.73 / (21.8 + dbh ^ 0.73)]
+dfallom[, chave14_h := computeAGB(D = dbh, WD = wd, H = h)]
 
+dfallom <- data.table::melt(dfallom, measure.vars = c("chave14_e", "chave14_h"), 
+                 variable.name = "allometry", value.name = "agb")
 
+ggplot(dfallom, aes(x = dbh, y = agb, colour = as.factor(wd), linetype = allometry)) +
+  geom_line() +
+  theme_classic2()
 
 
