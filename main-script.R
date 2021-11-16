@@ -4,7 +4,7 @@
 # Author: Camille Piponiot, github.com/cpiponiot  #
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 
-# list of pacakges needed to run this code
+# list of packages needed to run this code
 req_packages <- c("rdryad", "data.table", "ggplot2", "utils", "BIOMASS")
 
 # packages that are not yet installed on the computer
@@ -14,11 +14,11 @@ ins_packages <-  req_packages[!(req_packages %in% rownames(installed.packages())
 if (length(ins_packages) > 0)
   install.packages(ins_packages)
 
-# load all packages
-lapply(req_packages, require, character.only = TRUE)
+# load packages
+library(ggplot2)
 
 # source internal functions 
-# source("functions.R")
+source("functions.R")
 
 ### Get BCI 50-ha plot data ####
 
@@ -51,27 +51,78 @@ census_list <- lapply(bci_stem, function(name) {
 names(census_list) <- data.table::tstrsplit(bci_stem, "\\.")[[2]]
 
 # 4. compile as one data table
-df_census <- data.table::rbindlist(census_list, fill = TRUE, idcol = "censusID")
+df_stem <- data.table::rbindlist(census_list, fill = TRUE, idcol = "censusID")
 
+# add species information
+df_stem <- merge(df_stem, bci.spptable, by = "sp", all.x = TRUE) 
+
+# get census year (median value of all years of measurement for one census)
+df_stem[, year := as.numeric(data.table::tstrsplit(ExactDate, "-")[[1]])]
+df_stem[, year := median(year, na.rm = TRUE), .(censusID)]
+
+### estimate individual aboveground biomass using different methods ####
+
+# 1. no correction
+
+# Chave et al 2014 allometric equation, no height information
+df_stem[, chave14 := agb_bci(dbh = dbh/10, wd = wsg, method = "chave14")]
+
+# Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2019
+df_stem[, chave14_h := agb_bci(dbh = dbh/10, wd = wsg, method = "chave14", use_height_allom = TRUE)]
+
+# Chave et al 2005 allometric equation, no height information
+df_stem[, chave05 := agb_bci(dbh = dbh/10, wd = wsg, method = "chave05")]
+
+# Chave et al 2005 allometric equation, tree height from Martinez Cano et al., 2019
+df_stem[, chave05_h := agb_bci(dbh = dbh/10, wd = wsg, method = "chave05", use_height_allom = TRUE)]
+
+# 2. taper correction
+
+
+# plot-level AGB ####
+
+# melt to long format for diffent methods
+df_stem_melt <-
+  data.table::melt(
+    df_stem,
+    id.vars = c("stemID", "treeID", "year", "quadrat", "DFstatus"), 
+    measure.vars = grep("chave", colnames(df_stem)),
+    variable.name = "allometry",
+    value.name = "agb"
+  )
+
+# replace NAs with 0 in agb values
+df_stem_melt[is.na(agb), agb := 0]
+
+# aggregate agb values, in Mg/ha (divide by area = 50 ha)
+df_plot <- df_stem_melt[DFstatus == "alive", .(agb = sum(agb) / 50), .(allometry, year)]
 
 #### Figure 1 - AGB estimation and potential sources of uncertainty ####
 
 # create data table for illustrating different allometric equations at the
 # individual tree level
-dfallom <- data.table(expand.grid(dbh = 1:200, wd = c(0.4, 0.8)))
+dfallom <- data.table::data.table(expand.grid(dbh = 1:200, wd = c(0.4, 0.8)))
 
 # Chave et al 2014 allometric equation, no height information
-dfallom[, chave14_e := computeAGB(D = dbh, WD = wd, coord = c(-79.8461, 9.1543))]
+dfallom[, chave14 := agb_bci(dbh = dbh, wd = wd, method = "chave14")]
 
-# Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2014
-dfallom[, h  := 58.0 * dbh ^ 0.73 / (21.8 + dbh ^ 0.73)]
-dfallom[, chave14_h := computeAGB(D = dbh, WD = wd, H = h)]
+# Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2019
+dfallom[, chave14_h := agb_bci(dbh = dbh, wd = wd, method = "chave14", use_height_allom = TRUE)]
 
-dfallom <- data.table::melt(dfallom, measure.vars = c("chave14_e", "chave14_h"), 
-                 variable.name = "allometry", value.name = "agb")
+# Chave et al 2005 allometric equation, no height information
+dfallom[, chave05 := agb_bci(dbh = dbh, wd = wd, method = "chave05")]
 
-ggplot(dfallom, aes(x = dbh, y = agb, colour = as.factor(wd), linetype = allometry)) +
+# Chave et al 2005 allometric equation, tree height from Martinez Cano et al., 2019
+dfallom[, chave05_h := agb_bci(dbh = dbh, wd = wd, method = "chave05", use_height_allom = TRUE)]
+
+dfallom <- data.table::melt(dfallom, measure.vars = grep("chave", colnames(dfallom)), 
+                            variable.name = "allometry", value.name = "agb")
+
+ggplot(dfallom, aes(x = dbh, y = agb, colour = allometry, linetype = as.factor(wd))) +
   geom_line() +
-  theme_classic2()
+  theme_classic()
 
+ggplot(subset(df_plot, year >= 1985)) + 
+  geom_line(aes(x = year, y = agb, color = allometry))+
+  theme_classic()
 
