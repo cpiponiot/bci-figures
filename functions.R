@@ -3,7 +3,9 @@
 # Author: Camille Piponiot, github.com/cpiponiot  #
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 
-
+# estimate agb values at BCI with allometric equations from Chave et al. 2014
+# (method = "chave14") or Chave et al., 2005 (method = "chave05"); the height
+# equation from Martinez Cano et al 2019 is used when use_height_allom = TRUE
 agb_bci <- function(dbh,
                     wd,
                     method = "chave14",
@@ -33,4 +35,49 @@ agb_bci <- function(dbh,
   }
   
   return(agb)
+}
+
+
+# function to interpolate missing dbh value ####
+
+# param dbh: all dbhs measurements of one tree or stem
+# param year: the years corresponding to those measurements
+# param DFstatus: the status of the tree or stem for all those measurements
+
+# returns a dbh vector with all missing values interpolated (only when there is
+# at least one dbh measurement before and after the missing dbh)
+
+interpolate_missing <- function(dbh, year, DFstatus) {
+  if (any(DFstatus == "missing")) { 
+    # order dbh and year vector in chronological order
+    year_ord <- year[order(year)]
+    dbh_ord <- dbh[order(year)]
+    
+    # years of all missing values 
+    for (y0 in year[DFstatus == "missing"]) {
+      # last (non NA) dbh measurement prior to the missing measurement
+      dbh1 <- data.table::last(dbh_ord[!is.na(dbh_ord) & year_ord < y0])
+      # first (non NA) dbh measurement after the missing measurement
+      dbh2 <- data.table::first(dbh_ord[!is.na(dbh_ord) & year_ord > y0])
+      
+      # check that dbh1 and dbh2 have values (otherwise: no data to interpolate from)
+      if (length(dbh1) > 0 & length(dbh2) > 0) {
+        # last year with (non NA) dbh measurement prior to the missing measurement
+        year1 <- max(year_ord[!is.na(dbh_ord) & year_ord < y0])
+        # first year with (non NA) dbh measurement after the missing measurement
+        year2 <- min(year_ord[!is.na(dbh_ord) & year_ord > y0])
+        
+        # slope of the regression between the measurements before and after the
+        # missing value
+        slope <- (dbh2 - dbh1) / (year2 - year1)
+        # interpolation:
+        dbh_ord[year_ord == y0] <- slope * (y0 - year1) + dbh1
+      } 
+    }
+    
+    return(dbh_ord[order(order(year))])
+    
+  } else {
+    return(dbh)
+  }
 }
