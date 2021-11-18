@@ -4,14 +4,14 @@
 # Author: Camille Piponiot, github.com/cpiponiot  #
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 
-# list of packages needed to run this code
+# list of package dependencies
 req_packages <- c("rdryad", "data.table", "ggplot2", "utils", "BIOMASS")
 
 # packages that are not yet installed on the computer
 ins_packages <-  req_packages[!(req_packages %in% rownames(installed.packages()))]
 
 # install missing packages
-if (length(ins_packages) > 0)
+if (length(ins_packages) > 0) 
   install.packages(ins_packages)
 
 # load packages
@@ -62,7 +62,7 @@ df_stem[, year := median(year, na.rm = TRUE), .(censusID)]
 
 ### estimate individual aboveground biomass using different methods ####
 
-# 1. no correction
+# no correction
 
 # Chave et al 2014 allometric equation, no height information
 df_stem[, chave14 := agb_bci(dbh = dbh/10, wd = wsg, method = "chave14")]
@@ -76,12 +76,23 @@ df_stem[, chave05 := agb_bci(dbh = dbh/10, wd = wsg, method = "chave05")]
 # Chave et al 2005 allometric equation, tree height from Martinez Cano et al., 2019
 df_stem[, chave05_h := agb_bci(dbh = dbh/10, wd = wsg, method = "chave05", use_height_allom = TRUE)]
 
-# 2. taper correction
+# corr1: taper correction
+# from Cushman et al., 2021, using WSG 
+df_stem[, b := 0.151 - 0.025 * log(dbh/10) - 0.02 * log(hom) - 0.021 * log(wsg)]
+df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
+df_stem[, chave14_t := agb_bci(dbh = dbh_t/10, wd = wsg, method = "chave14", use_height_allom = TRUE)]
 
+# corr2: interpolate missing DBHs
+df_stem[, chave14_ti := agb_bci(dbh = dbh_ti/10, wd = wsg, method = "chave14", use_height_allom = TRUE)]
+
+
+# corr3: replace DHB or AGB growth
+missing_trees <- unique(df_stem$treeID[df_stem$DFstatus=="missing"&!is.na(df_stem$DFstatus)])
+df_stem[df_stem$treeID %in% missing_trees, any(!is.na(dbh) & year < min(year[missing])), .(stemID)]
 
 # plot-level AGB ####
 
-# melt to long format for diffent methods
+# melt to long format for different methods
 df_stem_melt <-
   data.table::melt(
     df_stem,
@@ -96,6 +107,9 @@ df_stem_melt[is.na(agb), agb := 0]
 
 # aggregate agb values, in Mg/ha (divide by area = 50 ha)
 df_plot <- df_stem_melt[DFstatus == "alive", .(agb = sum(agb) / 50), .(allometry, year)]
+
+
+# corr4: kohyama correction 
 
 #### Figure 1 - AGB estimation and potential sources of uncertainty ####
 
