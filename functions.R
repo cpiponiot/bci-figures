@@ -81,3 +81,27 @@ interpolate_missing <- function(dbh, year, DFstatus) {
     return(dbh)
   }
 }
+# Kohyama correction function ####
+# instanteneous biomass (or other) fluxes as recommended by Kohyama 2019 (eq 1-2 in Table 1)
+
+kohyama_correction <- function(dt, vars) {
+  dt_sub = dt[variable %in% vars, .(value = sum(value * weight) / sum(weight),
+                                    weight = sum(weight)),
+              .(dT, year, variable, group, site)]
+  dt_new = dcast(dt_sub, year + dT + site + weight + group ~ variable)
+  dt_new$B0 = dt_new[, vars[1], with = FALSE]
+  dt_new$gain = dt_new[, vars[2], with = FALSE]
+  dt_new$loss = dt_new[, vars[3], with = FALSE]
+  dt_new[, BS0 := B0 - loss * dT]
+  dt_new[, BT := B0 + (gain - loss) * dT]
+  dt_new[, vars[2] := (log(BT / BS0) * (BT - B0)) / (dT * log(BT / B0))]
+  dt_new[, vars[3] := (log(B0 / BS0) * (BT - B0)) / (dT * log(BT / B0))]
+  
+  dt_new = melt(dt_new,
+                id.vars = c("site", "weight", "group"),
+                measure.vars = vars)
+  dt_corr = rbind(dt[!variable %in% vars, colnames(dt_new), with = FALSE], dt_new)
+  dt_corr = subset(dt_corr,!is.na(value))
+  return(dt_corr)
+}
+
