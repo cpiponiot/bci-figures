@@ -81,6 +81,86 @@ interpolate_missing <- function(dbh, year, DFstatus) {
     return(dbh)
   }
 }
+
+## get symmetrical distribution of dbh change by transforming with modulus function
+## then calculate mean dbh or agb change and backtransform
+
+substitute_change = function(varD,
+                             cut = c(-0.5, 5),
+                             lambda = 0.5,
+                             value = "D",
+                             D = NULL,
+                             WD = NULL) {
+  
+  keep_values = which(varD > cut[1] & varD < cut[2] & !is.na(varD))
+  change_values = which((varD <= cut[1] | varD >= cut[2]) & !is.na(varD))
+  transf_values = modulus(varD[keep_values], lambda)
+  mu = mean(transf_values)
+  sigma = sd(transf_values)
+  
+  if (value == "D") {
+    diffModD = function(x)
+      modulus(x, 1 / lambda) * dnorm(x, mu, sigma)
+    varD[change_values] = integrate(diffModD,-Inf, Inf)$value
+    return(varD)
+  }
+  
+  if (value == "AGB") {
+    dAGB = agb_bci(dbh = D + varD, wd = WD) - agb_bci(dbh = D, wd = WD)
+    if (length(change_values) == 1) {
+      dAGB[change_values] = ExpDiffAGB(
+        d = D[change_values],
+        wd = WD[change_values],
+        lambda = lambda,
+        mu = mu,
+        sigma = sigma
+      )
+    } else if (length(change_values) > 1) {
+      dAGB[change_values] = apply(cbind(D, WD)[change_values, ], 1, function(x) {
+        ExpDiffAGB(
+          d = x[1],
+          wd = x[2],
+          lambda = lambda,
+          mu = mu,
+          sigma = sigma
+        )
+      })
+    }
+    return(dAGB/1000)
+  }
+}
+
+modulus = function(d, lambda = 0.4) {
+  return(sign(d) * abs(d) ^ lambda)
+}
+
+ExpDiffAGB = function(d, wd, lambda, mu, sigma) {
+  # AGB > 0 => d + modulus(x, 1/lambda) > 0 => x > -(d^lambda)
+  minVar = -d ^ lambda
+  pdfdAGB = function(x) {
+    dAGB = agb_bci(d + modulus(x, 1 / lambda), wd) - agb_bci(d, wd)
+    dens = dtruncnorm(x, mean = mu, sd = sigma, a = minVar)
+    return(dAGB * dens)
+  }
+  return(integrate(pdfdAGB, lower = minVar, upper = Inf)$value)
+}
+
+## modulus(Ddbh) not exactly normal: bimodal distribution (looks more like N(0,sd) + logN(mu, sd2))
+
+# test
+# x = fgeo_data[site=="bci"&dbhc>50]
+# x[, dvar := c(diff(dbhc) / diff(year), NA)]
+# # last stem measurement: dvar = NA
+# x[, lastMeas := c(stemid[-1] != stemid[-nrow(x)], TRUE)]
+# x[(lastMeas), dvar := NA]
+# varD = x$dvar
+# D = x$dbhc
+# WD = x$wsg
+# E = 1.5
+# hom_change = x$dHOM
+#
+
+
 # Kohyama correction function ####
 # instanteneous biomass (or other) fluxes as recommended by Kohyama 2019 (eq 1-2 in Table 1)
 

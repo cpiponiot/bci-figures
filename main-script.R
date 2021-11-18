@@ -58,7 +58,13 @@ df_stem <- merge(df_stem, bci.spptable, by = "sp", all.x = TRUE)
 
 # get census year (median value of all years of measurement for one census)
 df_stem[, year := as.numeric(data.table::tstrsplit(ExactDate, "-")[[1]])]
-df_stem[, year := median(year, na.rm = TRUE), .(censusID)]
+df_stem[, census_year := median(year, na.rm = TRUE), .(censusID)]
+
+# order df_stem by treeID, stemID and year
+data.table::setorder(df_stem, treeID, stemID, year)
+
+# remove measures under 10 mm 
+df_stem <- subset(df_stem, dbh >= 10 | is.na(dbh))
 
 ### estimate individual aboveground biomass using different methods ####
 
@@ -86,20 +92,30 @@ df_stem[, chave14_t := agb_bci(dbh = dbh_t/10, wd = wsg, method = "chave14", use
 df_stem[, dbh_ti := interpolate_missing(dbh_t, year, DFstatus), .(stemID)]
 df_stem[, chave14_ti := agb_bci(dbh = dbh_ti/10, wd = wsg, method = "chave14", use_height_allom = TRUE)]
 
-
 # corr3: replace DHB or AGB growth
-missing_trees <- unique(df_stem$treeID[df_stem$DFstatus=="missing"&!is.na(df_stem$DFstatus)])
-df_stem[df_stem$treeID %in% missing_trees, any(!is.na(dbh) & year < min(year[missing])), .(stemID)]
+# estimate dbh variation between two censuses, in mm/yr
+df_stem[, Ddbh := c(diff(dbh_ti)/diff(year), NA), .(stemID)]
+# size groups / other grouping factors?
+df_stem[, size := cut(dbh_ti, c(9, 100, 200, 300, 500, 1000, 10000))]
+
+## change abnormal dbh changes, grouping by size
+df_stem[, `:=`(
+  Ddbh_s = substitute_change(varD = Ddbh, cut = c(-0.5, 5)),
+  Dagb_s = substitute_change(D = dbh_ti, varD = Ddbh, WD = wsg, 
+                             value = "AGB", cut = c(-0.5, 5))),
+  size]
+
 
 # plot-level AGB ####
 
-# melt to long format for different methods
+# melt to long format with a method column = allometries and methods used, and
+# an 'agb' column = agb estimations under different methods
 df_stem_melt <-
   data.table::melt(
     df_stem,
     id.vars = c("stemID", "treeID", "year", "quadrat", "DFstatus"), 
     measure.vars = grep("chave", colnames(df_stem)),
-    variable.name = "allometry",
+    variable.name = "method",
     value.name = "agb"
   )
 
@@ -131,13 +147,13 @@ dfallom[, chave05 := agb_bci(dbh = dbh, wd = wd, method = "chave05")]
 dfallom[, chave05_h := agb_bci(dbh = dbh, wd = wd, method = "chave05", use_height_allom = TRUE)]
 
 dfallom <- data.table::melt(dfallom, measure.vars = grep("chave", colnames(dfallom)), 
-                            variable.name = "allometry", value.name = "agb")
+                            variable.name = "method", value.name = "agb")
 
-ggplot(dfallom, aes(x = dbh, y = agb, colour = allometry, linetype = as.factor(wd))) +
+ggplot(dfallom, aes(x = dbh, y = agb, colour = method, linetype = as.factor(wd))) +
   geom_line() +
   theme_classic()
 
 ggplot(subset(df_plot, year >= 1985)) + 
-  geom_line(aes(x = year, y = agb, color = allometry))+
+  geom_line(aes(x = year, y = agb, color = method))+
   theme_classic()
 
