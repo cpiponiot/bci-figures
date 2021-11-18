@@ -83,6 +83,7 @@ df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
 df_stem[, chave14_t := agb_bci(dbh = dbh_t/10, wd = wsg, method = "chave14", use_height_allom = TRUE)]
 
 # corr2: interpolate missing DBHs
+df_stem[, dbh_ti := interpolate_missing(dbh_t, year, DFstatus), .(stemID)]
 df_stem[, chave14_ti := agb_bci(dbh = dbh_ti/10, wd = wsg, method = "chave14", use_height_allom = TRUE)]
 
 
