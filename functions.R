@@ -48,13 +48,13 @@ agb_bci <- function(dbh,
 # at least one dbh measurement before and after the missing dbh)
 
 interpolate_missing <- function(dbh, year, DFstatus) {
-  if (any(DFstatus == "missing")) { 
+  if (any(DFstatus == "missing" & !is.na(DFstatus))) { 
     # order dbh and year vector in chronological order
     year_ord <- year[order(year)]
     dbh_ord <- dbh[order(year)]
     
     # years of all missing values 
-    for (y0 in year[DFstatus == "missing"]) {
+    for (y0 in year[DFstatus == "missing" & !is.na(DFstatus)]) {
       # last (non NA) dbh measurement prior to the missing measurement
       dbh1 <- data.table::last(dbh_ord[!is.na(dbh_ord) & year_ord < y0])
       # first (non NA) dbh measurement after the missing measurement
