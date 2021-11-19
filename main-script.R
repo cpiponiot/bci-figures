@@ -5,7 +5,7 @@
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 
 # list of package dependencies
-req_packages <- c("rdryad", "data.table", "ggplot2", "utils", "truncnorm")
+req_packages <- c("rdryad", "data.table", "ggplot2", "utils", "truncnorm", "ggpubr")
 
 # packages that are not yet installed on the computer
 ins_packages <-  req_packages[!(req_packages %in% rownames(installed.packages()))]
@@ -98,6 +98,7 @@ df_stem[, chave14_ti := agb_bci(dbh = dbh_ti, wd = wsg)]
 # corr3: replace DHB or AGB growth
 # estimate dbh variation between two censuses, in cm/yr
 df_stem[, Ddbh := c(diff(dbh_ti)/diff(year), NA), .(stemID)]
+df_stem[, Dagb := c(diff(chave14)/diff(year), NA), .(stemID)]
 # size groups / other grouping factors?
 df_stem[, size := cut(dbh_ti, c(0.9, 10, 20, 30, 50, 100, 1000))]
 ## change abnormal dbh changes, grouping by size
@@ -108,7 +109,7 @@ df_stem[!is.na(Ddbh), `:=`(
   size]
 
 
-# plot-level AGB ####
+# plot-level AGB and AWP ####
 
 # melt to long format with a method column = allometries and methods used, and
 # an 'agb' column = agb estimations under different methods
@@ -116,7 +117,7 @@ df_stem_melt <-
   data.table::melt(
     df_stem,
     id.vars = c("stemID", "treeID", "census_year", "quadrat", "DFstatus"), 
-    measure.vars = grep("chave", colnames(df_stem)),
+    measure.vars = grep("chave|Dagb", colnames(df_stem)),
     variable.name = "method",
     value.name = "agb"
   )
@@ -125,10 +126,20 @@ df_stem_melt <-
 df_stem_melt[is.na(agb), agb := 0]
 
 # aggregate agb values, in Mg/ha (divide by area = 50 ha)
-df_plot <- df_stem_melt[DFstatus == "alive", .(agb = sum(agb) / 50), .(method, year = census_year)]
+df_plot <- df_stem_melt[, .(value = sum(agb) / 50), .(method, year = census_year)]
+df_plot[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
 
+levels(df_plot$method) <- list("Chave 2014" = "chave14", 
+                               "Chave 2014 + height allom" = "chave14_h", 
+                               "Chave 2005" = "chave05", 
+                               "Chave 2005 + height allom" = "chave05_h", 
+                               "Taper correction" = "chave14_t", 
+                               "Taper correction + missing stems" = "chave14_ti", 
+                               "No correction" = "Dagb", 
+                               "Substitution" = "Dagb_s")
 
 # corr4: kohyama correction 
+# df_plot[, kohyama_correction()
 
 #### Figure 1 - AGB estimation and potential sources of uncertainty ####
 
@@ -150,15 +161,64 @@ dfallom[, chave05_h := agb_bci(dbh = dbh, wd = wd, method = "chave05", use_heigh
 
 dfallom <- data.table::melt(dfallom, measure.vars = grep("chave", colnames(dfallom)), 
                             variable.name = "method", value.name = "agb")
-
-ggplot(dfallom, aes(x = dbh, y = agb, colour = method, linetype = as.factor(wd))) +
+levels(dfallom$method) <- list("Chave 2014" = "chave14", 
+                               "Chave 2014 + height allom" = "chave14_h", 
+                               "Chave 2005" = "chave05", 
+                               "Chave 2005 + height allom" = "chave05_h")
+fig1a_allom_ind <-
+  ggplot(dfallom, aes(
+    x = dbh,
+    y = agb,
+    colour = method,
+    linetype = as.factor(wd)
+  )) +
   geom_line() +
-  theme_classic()
+  theme_classic() + 
+  expand_limits(x = 0, y = 0) +   
+  scale_x_continuous(expand = c(0, 0)) + scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "Stem diameter (cm)",
+       y = "Estimated aboveground biomass of trees (Mg)",
+       colour = "Allometry used",
+       lty = "Wood density") 
+fig1_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig1a_allom_ind))
 
-ggplot(subset(df_plot, year >= 1985 & !grepl("t", method))) + 
-  geom_line(aes(x = year, y = agb, color = method))+
-  theme_classic()
+fig1b_allom_plot <- ggplot(subset(df_plot, year >= 1985 & !grepl("tion", method))) +
+  geom_line(aes(x = year, y = value, color = method)) +
+  theme_classic() +
+  # expand_limits(y = 0) +   
+  # scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "Census year",
+       y = "Estimated plot aboveground biomass (Mg/ha)",
+       colour = "Allometry used") +
+  theme(legend.position = "none")
 
-ggplot(subset(df_plot, year >= 1985 & (grepl("t", method) | method == "chave14"))) + 
-  geom_line(aes(x = year, y = agb, color = method))+
-  theme_classic()
+ggpubr::ggarrange(fig1a_allom_ind + theme(legend.position = "none"), 
+                  fig1b_allom_plot, fig1_leg, 
+                  labels = c("a", "b", ""), ncol = 3, widths = c(2,2,1))
+ggsave("fig1_allom.pdf", height = 4, width = 10)
+
+dfcorr <- subset(df_plot, year >= 1985 &
+                   (grepl("corr", method) | method == "Chave 2014") & 
+                   variable == "agb")
+levels(dfcorr$method)[levels(dfcorr$method) == "Chave 2014"] <- "No correction"
+
+fig2b_corr_agb <-
+  ggplot(dfcorr) +
+  geom_line(aes(x = year, y = value, color = method)) +
+  theme_classic() +
+  labs(x = "Census year",
+       y = "Estimated plot aboveground biomass (Mg/ha)",
+       colour = "Correction applied") 
+
+dfcorr <- subset(df_plot, year >= 1985 &
+                   (grepl("corr", method) | method == "Chave 2014") & 
+                   variable == "agb")
+levels(dfcorr$method)[levels(dfcorr$method) == "Chave 2014"] <- "No correction"
+
+fig2c_corr_awp <-
+  ggplot(subset(df_plot, year >= 1985 & variable == "awp")) +
+  geom_line(aes(x = year, y = value, color = method)) +
+  theme_classic() +
+  labs(x = "Census year",
+       y = "Estimated plot aboveground woody \nproductivity (Mg/ha/yr)",
+       colour = "Correction applied") 
