@@ -19,7 +19,7 @@ agb_bci <- function(dbh,
     }
     if (method == "chave14") {
       # Chave et al. 2014, equation 4 with the BIOMASS package 
-      agb <- BIOMASS::computeAGB(D = dbh, WD = wd, H = h)
+      agb <- (0.0673 * (wd * h * dbh^2)^0.976)/1000
     }
   } else {
     # without any height information
@@ -30,7 +30,9 @@ agb_bci <- function(dbh,
     }
     if (method == "chave14") {
       # Chave et al. 2014, equation 7 with the BIOMASS package (transform into kg)
-      agb <- BIOMASS::computeAGB(D = dbh, WD = wd, coord = c(-79.8461, 9.1543))
+      E <- 0.05176398
+      agb <- exp(-2.023977 - 0.89563505 * E + 0.92023559 * 
+                   log(wd) + 2.79495823 * log(dbh) - 0.04606298 * (log(dbh)^2))/1000
     }
   }
   
@@ -99,8 +101,7 @@ substitute_change = function(varD,
   sigma = sd(transf_values)
   
   if (value == "D") {
-    diffModD = function(x)
-      modulus(x, 1 / lambda) * dnorm(x, mu, sigma)
+    diffModD = function(x) modulus(x, 1 / lambda) * dnorm(x, mu, sigma)
     varD[change_values] = integrate(diffModD,-Inf, Inf)$value
     return(varD)
   }
@@ -139,7 +140,7 @@ ExpDiffAGB = function(d, wd, lambda, mu, sigma) {
   minVar = -d ^ lambda
   pdfdAGB = function(x) {
     dAGB = agb_bci(d + modulus(x, 1 / lambda), wd) - agb_bci(d, wd)
-    dens = dtruncnorm(x, mean = mu, sd = sigma, a = minVar)
+    dens = truncnorm::dtruncnorm(x, mean = mu, sd = sigma, a = minVar)
     return(dAGB * dens)
   }
   return(integrate(pdfdAGB, lower = minVar, upper = Inf)$value)

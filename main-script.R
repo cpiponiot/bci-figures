@@ -5,7 +5,7 @@
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 
 # list of package dependencies
-req_packages <- c("rdryad", "data.table", "ggplot2", "utils", "BIOMASS")
+req_packages <- c("rdryad", "data.table", "ggplot2", "utils", "truncnorm")
 
 # packages that are not yet installed on the computer
 ins_packages <-  req_packages[!(req_packages %in% rownames(installed.packages()))]
@@ -63,43 +63,45 @@ df_stem[, census_year := median(year, na.rm = TRUE), .(censusID)]
 # order df_stem by treeID, stemID and year
 data.table::setorder(df_stem, treeID, stemID, year)
 
-# remove measures under 10 mm 
-df_stem <- subset(df_stem, dbh >= 10 | is.na(dbh))
+# dbh in cm 
+df_stem[, dbh := dbh/10]
+
+# remove measures under 1 cm 
+df_stem <- subset(df_stem, dbh >= 1 | is.na(dbh))
 
 ### estimate individual aboveground biomass using different methods ####
 
 # no correction
 
 # Chave et al 2014 allometric equation, no height information
-df_stem[, chave14 := agb_bci(dbh = dbh/10, wd = wsg, method = "chave14")]
+df_stem[, chave14 := agb_bci(dbh = dbh, wd = wsg, method = "chave14")]
 
 # Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2019
-df_stem[, chave14_h := agb_bci(dbh = dbh/10, wd = wsg, method = "chave14", use_height_allom = TRUE)]
+df_stem[, chave14_h := agb_bci(dbh = dbh, wd = wsg, method = "chave14", use_height_allom = TRUE)]
 
 # Chave et al 2005 allometric equation, no height information
-df_stem[, chave05 := agb_bci(dbh = dbh/10, wd = wsg, method = "chave05")]
+df_stem[, chave05 := agb_bci(dbh = dbh, wd = wsg, method = "chave05")]
 
 # Chave et al 2005 allometric equation, tree height from Martinez Cano et al., 2019
-df_stem[, chave05_h := agb_bci(dbh = dbh/10, wd = wsg, method = "chave05", use_height_allom = TRUE)]
+df_stem[, chave05_h := agb_bci(dbh = dbh, wd = wsg, method = "chave05", use_height_allom = TRUE)]
 
 # corr1: taper correction
 # from Cushman et al., 2021, using WSG 
-df_stem[, b := 0.151 - 0.025 * log(dbh/10) - 0.02 * log(hom) - 0.021 * log(wsg)]
+df_stem[, b := 0.151 - 0.025 * log(dbh) - 0.02 * log(hom) - 0.021 * log(wsg)]
 df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
-df_stem[, chave14_t := agb_bci(dbh = dbh_t/10, wd = wsg, method = "chave14", use_height_allom = TRUE)]
+df_stem[, chave14_t := agb_bci(dbh = dbh_t, wd = wsg)]
 
 # corr2: interpolate missing DBHs
 df_stem[, dbh_ti := interpolate_missing(dbh_t, year, DFstatus), .(stemID)]
-df_stem[, chave14_ti := agb_bci(dbh = dbh_ti/10, wd = wsg, method = "chave14", use_height_allom = TRUE)]
+df_stem[, chave14_ti := agb_bci(dbh = dbh_ti, wd = wsg)]
 
 # corr3: replace DHB or AGB growth
-# estimate dbh variation between two censuses, in mm/yr
+# estimate dbh variation between two censuses, in cm/yr
 df_stem[, Ddbh := c(diff(dbh_ti)/diff(year), NA), .(stemID)]
 # size groups / other grouping factors?
-df_stem[, size := cut(dbh_ti, c(9, 100, 200, 300, 500, 1000, 10000))]
-
+df_stem[, size := cut(dbh_ti, c(0.9, 10, 20, 30, 50, 100, 1000))]
 ## change abnormal dbh changes, grouping by size
-df_stem[, `:=`(
+df_stem[!is.na(Ddbh), `:=`(
   Ddbh_s = substitute_change(varD = Ddbh, cut = c(-0.5, 5)),
   Dagb_s = substitute_change(D = dbh_ti, varD = Ddbh, WD = wsg, 
                              value = "AGB", cut = c(-0.5, 5))),
@@ -113,7 +115,7 @@ df_stem[, `:=`(
 df_stem_melt <-
   data.table::melt(
     df_stem,
-    id.vars = c("stemID", "treeID", "year", "quadrat", "DFstatus"), 
+    id.vars = c("stemID", "treeID", "census_year", "quadrat", "DFstatus"), 
     measure.vars = grep("chave", colnames(df_stem)),
     variable.name = "method",
     value.name = "agb"
@@ -123,7 +125,7 @@ df_stem_melt <-
 df_stem_melt[is.na(agb), agb := 0]
 
 # aggregate agb values, in Mg/ha (divide by area = 50 ha)
-df_plot <- df_stem_melt[DFstatus == "alive", .(agb = sum(agb) / 50), .(allometry, year)]
+df_plot <- df_stem_melt[DFstatus == "alive", .(agb = sum(agb) / 50), .(method, year = census_year)]
 
 
 # corr4: kohyama correction 
@@ -153,7 +155,10 @@ ggplot(dfallom, aes(x = dbh, y = agb, colour = method, linetype = as.factor(wd))
   geom_line() +
   theme_classic()
 
-ggplot(subset(df_plot, year >= 1985)) + 
+ggplot(subset(df_plot, year >= 1985 & !grepl("t", method))) + 
   geom_line(aes(x = year, y = agb, color = method))+
   theme_classic()
 
+ggplot(subset(df_plot, year >= 1985 & (grepl("t", method) | method == "chave14"))) + 
+  geom_line(aes(x = year, y = agb, color = method))+
+  theme_classic()
