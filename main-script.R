@@ -134,7 +134,7 @@ levels(df_plot$method) <- list("Chave 2014" = "chave14",
                                "Chave 2005" = "chave05", 
                                "Chave 2005 + height allom" = "chave05_h", 
                                "Taper correction" = "chave14_t", 
-                               "Taper correction + missing stems" = "chave14_ti", 
+                               "Taper correction\n+ missing stems" = "chave14_ti", 
                                "No correction" = "Dagb", 
                                "Substitution" = "Dagb_s")
 
@@ -210,15 +210,13 @@ fig2b_corr_agb <-
        y = "Estimated plot aboveground biomass (Mg/ha)",
        colour = "Correction applied") 
 
-dfcorr <- subset(df_plot, year >= 1985 &
-                   (grepl("corr", method) | method == "Chave 2014") & 
-                   variable == "agb")
-levels(dfcorr$method)[levels(dfcorr$method) == "Chave 2014"] <- "No correction"
-
 fig2c_corr_awp <-
-  ggplot(subset(df_plot, year >= 1985 & variable == "awp")) +
+  ggplot(subset(df_plot, year >= 1985 & year < 2015 & variable == "awp")) +
   geom_line(aes(x = year, y = value, color = method)) +
   theme_classic() +
   labs(x = "Census year",
        y = "Estimated plot aboveground woody \nproductivity (Mg/ha/yr)",
        colour = "Correction applied") 
+
+ggpubr::ggarrange(fig2b_corr_agb, fig2c_corr_awp, labels = "auto")
+ggsave("fig2_correc.pdf", height = 4, width = 10)

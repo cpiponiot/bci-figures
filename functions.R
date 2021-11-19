@@ -84,6 +84,7 @@ interpolate_missing <- function(dbh, year, DFstatus) {
   }
 }
 
+# substitute abnormal hcanges in DBH ####
 ## get symmetrical distribution of dbh change by transforming with modulus function
 ## then calculate mean dbh or agb change and backtransform
 
@@ -127,7 +128,7 @@ substitute_change = function(varD,
         )
       })
     }
-    return(dAGB/1000)
+    return(dAGB)
   }
 }
 
@@ -165,7 +166,7 @@ ExpDiffAGB = function(d, wd, lambda, mu, sigma) {
 # Kohyama correction function ####
 # instanteneous biomass (or other) fluxes as recommended by Kohyama 2019 (eq 1-2 in Table 1)
 
-kohyama_correction <- function(dt, vars) {
+kohyama_correction <- function(stock, influx, outflux) {
   dt_sub = dt[variable %in% vars, .(value = sum(value * weight) / sum(weight),
                                     weight = sum(weight)),
               .(dT, year, variable, group, site)]
@@ -185,4 +186,3 @@ kohyama_correction <- function(dt, vars) {
   dt_corr = subset(dt_corr,!is.na(value))
   return(dt_corr)
 }
-
