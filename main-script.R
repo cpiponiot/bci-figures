@@ -100,7 +100,8 @@ df_stem[, chave14_ti := agb_bci(dbh = dbh_ti, wd = wsg)]
 df_stem[, Ddbh := c(diff(dbh_ti)/diff(year), NA), .(stemID)]
 df_stem[, Dagb := c(diff(chave14)/diff(year), NA), .(stemID)]
 # size groups / other grouping factors?
-df_stem[, size := cut(dbh_ti, c(0.9, 10, 20, 30, 50, 100, 1000))]
+maxD <- ceiling(max(df_stem$dbh_ti, na.rm = TRUE))
+df_stem[, size := cut(dbh_ti, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = TRUE)]
 ## change abnormal dbh changes, grouping by size
 df_stem[!is.na(Ddbh), `:=`(
   Ddbh_s = substitute_change(varD = Ddbh, cut = c(-0.5, 5)),
@@ -116,7 +117,7 @@ df_stem[!is.na(Ddbh), `:=`(
 df_stem_melt <-
   data.table::melt(
     df_stem,
-    id.vars = c("stemID", "treeID", "census_year", "quadrat", "DFstatus"), 
+    id.vars = c("stemID", "treeID", "census_year", "quadrat", "DFstatus", "size"), 
     measure.vars = grep("chave|Dagb", colnames(df_stem)),
     variable.name = "method",
     value.name = "agb"
@@ -155,7 +156,7 @@ df_plot <- rbind(df_plot, dfK)
 
 # 2. by quadrat ####
 df_quadrat <- df_stem_melt[, .(value = sum(agb) / 0.2^2), 
-                         .(method, year = census_year, quadrat)]
+                           .(method, year = census_year, quadrat)]
 df_quadrat[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
 
 # kohyama correction 
@@ -163,7 +164,7 @@ df_quadrat[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
 df_quadrat <- df_quadrat[method %in% c("chave14_ti", "Dagb_s")]
 df_quadrat <- data.table::dcast(df_quadrat, year + quadrat ~ variable)
 df_quadrat[order(year), `:=` (dT = c(diff(year), NA), 
-                       awm = awp - c(diff(agb)/diff(year), NA)), .(quadrat)]
+                              awm = awp - c(diff(agb)/diff(year), NA)), .(quadrat)]
 df_quadrat[, awp_k := kohyama_correction(agb, awp, awm, dT)]
 df_quadrat[, `:=`(dT = NULL, awp = awp_k, awm = NULL, awp_k = NULL)]
 
@@ -177,7 +178,27 @@ df_quadrat$X <- as.numeric(substr(df_quadrat$quadrat, 1, 2))*20 + 10
 df_quadrat$Y <- as.numeric(substr(df_quadrat$quadrat, 3, 4))*20 + 10
 df_quadrat <- subset(df_quadrat, !is.na(quadrat) & quadrat != "")
 
-# 3. by size class
+# 3. by size class ####
+df_size <- df_stem_melt[, .(value = sum(agb) / 50), 
+                        .(method, year = census_year, size)]
+df_size[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
+
+# kohyama correction 
+# > need to estimate mortality
+df_size <- df_size[method %in% c("chave14_ti", "Dagb_s")]
+df_size <- data.table::dcast(df_size, year + size ~ variable)
+df_size[order(year), `:=` (
+  dT = c(diff(year), NA), 
+  awm = awp - c(diff(agb)/diff(year), NA)
+), .(size)]
+df_size[, awp_k := kohyama_correction(agb, awp, awm, dT)]
+df_size[, `:=`(dT = NULL, awp = awp_k, awm = NULL, awp_k = NULL)]
+
+# mean across all years
+df_size <- df_size[!is.na(size) & year > 1982 & year < 2015, .(
+  agb = mean(agb), awp = mean(awp)
+), .(size)]
+
 
 #### Figure 1 - AGB estimation and potential sources of uncertainty ####
 
@@ -237,6 +258,21 @@ ggpubr::ggarrange(fig1a_allom_ind + theme(legend.position = "none"),
 ggsave("fig1_allom.pdf", height = 4, width = 10)
 
 # figure 2 ####
+# fig2a - illustration with one problematic tree
+df_929 <- subset(df_stem, stemID==929)
+df_929 <- data.table::melt(df_929, measure.vars = c("dbh", "hom"), id.vars = "year")
+levels(df_929$variable) <- c("Measured diameter (cm)", "Height of measurement (m)")
+fig2a_corr_tree <- ggplot(df_929, aes(x = year, y = value, color = variable)) +
+  geom_point() + 
+  labs(y = "", x = "Census year", title = "Tree #929") +
+  facet_wrap(~variable, ncol = 1, scales = "free_y", 
+             strip.position = "left")+
+  theme_classic() +
+  theme(legend.position = "none", 
+        strip.placement = "outside", 
+        strip.background = element_blank()) 
+
+# fig2b - corrections on plot AGB
 dfcorr <- subset(df_plot, year >= 1985 &
                    (grepl("corr", method) | method == "Chave 2014") & 
                    variable == "agb")
@@ -248,7 +284,8 @@ fig2b_corr_agb <-
   theme_classic() +
   labs(x = "Census year",
        y = "Estimated plot aboveground biomass (Mg/ha)",
-       colour = "Correction applied") 
+       colour = "Correction applied") + 
+  theme(legend.position = c(.75, .55))
 
 fig2c_corr_awp <-
   ggplot(subset(df_plot, year >= 1985 & year < 2015 & variable == "awp")) +
@@ -256,11 +293,46 @@ fig2c_corr_awp <-
   theme_classic() +
   labs(x = "Census year",
        y = "Estimated plot aboveground woody \nproductivity (Mg/ha/yr)",
-       colour = "Correction applied") 
+       colour = "Correction applied") + 
+  theme(legend.position = c(.5, .75))
 
-ggpubr::ggarrange(fig2b_corr_agb, fig2c_corr_awp, labels = "auto")
-ggsave("fig2_correc.pdf", height = 4, width = 10)
+ggpubr::ggarrange(fig2a_corr_tree, fig2b_corr_agb, fig2c_corr_awp, 
+                  nrow = 1, labels = "auto")
+ggsave("fig2_correc.pdf", height = 4, width = 12)
 
+# figure 3 ####
+
+# estimate percentage of each size class per variable
+df_size[, `:=`(agb = agb/sum(agb), awp = awp/sum(awp))]
+# revert order of size classes to have bigger trees above
+df_size$size <- factor(df_size$size, levels = rev(levels(df_size$size)))
+
+# figure 3a 
+fig3a_groups_size <- ggplot(df_size, aes(x = agb*100, y = awp*100, 
+                                         colour = size)) + 
+  geom_abline(slope = 1, intercept = 0, lty = 2) +
+  geom_point() + 
+  labs(x = "Proportion of AGB (%)", y = "Proportion of AWP (%)", 
+       color = "Diameter\nclass (cm)") +
+  expand_limits(x = c(0, 40), y = c(0, 40)) +   
+  scale_x_continuous(expand = c(0, 0)) +  
+  scale_y_continuous(expand = c(0, 0)) +  
+  coord_equal() +
+  # scale_color_manual(values = terrain.colors(7)[-7]) +
+  theme_classic()
+
+df_size_bis <- data.table::melt(df_size, measure.vars = c("agb", "awp"))
+# change variable labels (AGB, AWP) to upper case
+levels(df_size_bis$variable) <- toupper(levels(df_size_bis$variable))
+# figure 3a bis
+fig3a_bis_groups_size <- ggplot(df_size_bis) + 
+  geom_col(aes(x = variable, y = value*100, fill = size)) + 
+  labs(x = "", y = "Proportion (%)", fill = "Diameter\nclass (cm)") +
+  scale_y_continuous(expand = c(0, 0)) +  
+  theme_classic()
+
+ggpubr::ggarrange(fig3a_groups_size, fig3a_bis_groups_size, ncol = 2, labels = "auto")
+ggsave("fig3_groups.pdf", height = 4, width = 8)
 
 # figure 4 ####
 fig4a_map_agb <- ggplot(df_quadrat, aes(x = X, y = Y, fill = agb)) + 
