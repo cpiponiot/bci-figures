@@ -5,7 +5,14 @@
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 
 # list of package dependencies
-req_packages <- c("rdryad", "data.table", "ggplot2", "utils", "truncnorm", "ggpubr")
+req_packages <-
+  c("rdryad",
+    "data.table",
+    "ggplot2",
+    "utils",
+    "truncnorm",
+    "ggpubr",
+    "readxl")
 
 # packages that are not yet installed on the computer
 ins_packages <-  req_packages[!(req_packages %in% rownames(installed.packages()))]
@@ -99,9 +106,29 @@ df_stem[, chave14_ti := agb_bci(dbh = dbh_ti, wd = wsg)]
 # estimate dbh variation between two censuses, in cm/yr
 df_stem[, Ddbh := c(diff(dbh_ti)/diff(year), NA), .(stemID)]
 df_stem[, Dagb := c(diff(chave14)/diff(year), NA), .(stemID)]
+
 # size groups / other grouping factors?
 maxD <- ceiling(max(df_stem$dbh_ti, na.rm = TRUE))
 df_stem[, size := cut(dbh_ti, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = TRUE)]
+
+# functional groups, based on Ruger et al 2020, Data S1
+# download data
+if (!file.exists("ruger_data_s1.xlsx"))
+  utils::download.file(url = "https://www.science.org/doi/suppl/10.1126/science.aaz4797/suppl_file/aaz4797_ruger_data_s1.xlsx", 
+                       destfile = "ruger_data_s1.xlsx")
+# read downloaded data
+ruger_data <- readxl::read_xlsx("ruger_data_s1.xlsx", sheet = "Data")
+ruger_data$sp <- tolower(ruger_data$sp)
+
+# get PFT definition from metadata
+ruger_levels <- strsplit("1=slow, 2=fast, 3=LLP, 4=SLB, 5=intermediate", "=|, ")[[1]]
+ruger_levels <- data.frame(matrix(ruger_levels, ncol = 2, byrow = TRUE))
+colnames(ruger_levels) = c("PFT_2axes", "PFT")
+ruger_data <- merge(ruger_data, ruger_levels)
+
+# add PFTs to df_stem
+df_stem <- merge(df_stem, ruger_data[, c("sp", "PFT")], all.x = TRUE)
+
 ## change abnormal dbh changes, grouping by size
 df_stem[!is.na(Ddbh), `:=`(
   Ddbh_s = substitute_change(varD = Ddbh, cut = c(-0.5, 5)),
@@ -117,7 +144,7 @@ df_stem[!is.na(Ddbh), `:=`(
 df_stem_melt <-
   data.table::melt(
     df_stem,
-    id.vars = c("stemID", "treeID", "census_year", "quadrat", "DFstatus", "size"), 
+    id.vars = c("stemID", "treeID", "census_year", "quadrat", "DFstatus", "size", "PFT"), 
     measure.vars = grep("chave|Dagb", colnames(df_stem)),
     variable.name = "method",
     value.name = "agb"
@@ -199,6 +226,28 @@ df_size <- df_size[!is.na(size) & year > 1982 & year < 2015, .(
   agb = mean(agb), awp = mean(awp)
 ), .(size)]
 
+# 4. by functional group ####
+# xxx create function for this
+df_pft <- df_stem_melt[, .(value = sum(agb) / 50), 
+                        .(method, year = census_year, PFT)]
+df_pft[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
+
+# kohyama correction 
+# > xxx need to estimate mortality
+df_pft <- df_pft[method %in% c("chave14_ti", "Dagb_s")]
+df_pft <- data.table::dcast(df_pft, year + PFT ~ variable)
+df_pft[order(year), `:=` (
+  dT = c(diff(year), NA), 
+  awm = awp - c(diff(agb)/diff(year), NA)
+), .(PFT)]
+
+df_pft[, awp_k := kohyama_correction(agb, awp, awm, dT)]
+df_pft[, `:=`(dT = NULL, awp = awp_k, awm = NULL, awp_k = NULL)]
+
+# mean across all years
+df_pft <- df_pft[year > 1982 & year < 2015, .(
+  agb = mean(agb), awp = mean(awp)
+), .(PFT)]
 
 #### Figure 1 - AGB estimation and potential sources of uncertainty ####
 
@@ -321,6 +370,19 @@ fig3a_groups_size <- ggplot(df_size, aes(x = agb*100, y = awp*100,
   # scale_color_manual(values = terrain.colors(7)[-7]) +
   theme_classic()
 
+df_pft[, `:=`(agb = agb/sum(agb), awp = awp/sum(awp))]
+fig3b_groups_pft <- ggplot(df_pft, aes(x = agb*100, y = awp*100, 
+                                         colour = PFT)) + 
+  geom_abline(slope = 1, intercept = 0, lty = 2) +
+  geom_point() + 
+  labs(x = "Proportion of AGB (%)", y = "Proportion of AWP (%)", 
+       color = "PFT") +
+  expand_limits(x = c(0, 45), y = c(0, 45)) +   
+  scale_x_continuous(expand = c(0, 0)) +  
+  scale_y_continuous(expand = c(0, 0)) +  
+  coord_equal() +
+  theme_classic()
+
 df_size_bis <- data.table::melt(df_size, measure.vars = c("agb", "awp"))
 # change variable labels (AGB, AWP) to upper case
 levels(df_size_bis$variable) <- toupper(levels(df_size_bis$variable))
@@ -331,8 +393,21 @@ fig3a_bis_groups_size <- ggplot(df_size_bis) +
   scale_y_continuous(expand = c(0, 0)) +  
   theme_classic()
 
-ggpubr::ggarrange(fig3a_groups_size, fig3a_bis_groups_size, ncol = 2, labels = "auto")
+df_pft_bis <- data.table::melt(df_pft, measure.vars = c("agb", "awp"))
+# change variable labels (AGB, AWP) to upper case
+levels(df_pft_bis$variable) <- toupper(levels(df_pft_bis$variable))
+# figure 3a bis
+fig3b_bis_groups_pft <- ggplot(df_pft_bis) + 
+  geom_col(aes(x = variable, y = value*100, fill = PFT)) + 
+  labs(x = "", y = "Proportion (%)", fill = "PFT") +
+  scale_y_continuous(expand = c(0, 0)) +  
+  theme_classic()
+
+ggpubr::ggarrange(fig3a_groups_size, fig3b_groups_pft, ncol = 2, labels = "auto")
 ggsave("fig3_groups.pdf", height = 4, width = 8)
+
+ggpubr::ggarrange(fig3a_bis_groups_size, fig3b_bis_groups_pft, ncol = 2, labels = "auto")
+ggsave("fig3_groups_bis.pdf", height = 4, width = 8)
 
 # figure 4 ####
 fig4a_map_agb <- ggplot(df_quadrat, aes(x = X, y = Y, fill = agb)) + 
