@@ -125,7 +125,9 @@ df_stem_melt <-
 # replace NAs with 0 in agb values
 df_stem_melt[is.na(agb), agb := 0]
 
-# aggregate agb values, in Mg/ha (divide by area = 50 ha)
+# aggregate agb values ####
+# agb in Mg/ha (divide by area = 50 ha)
+# 1. by year ####
 df_plot <- df_stem_melt[, .(value = sum(agb) / 50), .(method, year = census_year)]
 df_plot[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
 
@@ -139,7 +141,43 @@ levels(df_plot$method) <- list("Chave 2014" = "chave14",
                                "Substitution" = "Dagb_s")
 
 # corr4: kohyama correction 
-# df_plot[, kohyama_correction()
+# > need to estimate mortality
+dfK <-
+  df_plot[year > 1982 &
+            method %in% c("Substitution", "Taper correction\n+ missing stems")]
+dfK <- data.table::dcast(dfK, year ~ variable)
+dfK[order(year), `:=` (dT = c(diff(year), NA), 
+                       awm = awp - c(diff(agb)/diff(year), NA))]
+dfK[, awp_k := kohyama_correction(agb, awp, awm, dT)]
+dfK <- data.table::data.table(method = "kohyama", year = dfK$year, 
+                              value = dfK$awp_k, variable = "awp")
+df_plot <- rbind(df_plot, dfK)
+
+# 2. by quadrat ####
+df_quadrat <- df_stem_melt[, .(value = sum(agb) / 0.2^2), 
+                         .(method, year = census_year, quadrat)]
+df_quadrat[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
+
+# kohyama correction 
+# > need to estimate mortality
+df_quadrat <- df_quadrat[method %in% c("chave14_ti", "Dagb_s")]
+df_quadrat <- data.table::dcast(df_quadrat, year + quadrat ~ variable)
+df_quadrat[order(year), `:=` (dT = c(diff(year), NA), 
+                       awm = awp - c(diff(agb)/diff(year), NA)), .(quadrat)]
+df_quadrat[, awp_k := kohyama_correction(agb, awp, awm, dT)]
+df_quadrat[, `:=`(dT = NULL, awp = awp_k, awm = NULL, awp_k = NULL)]
+
+# mean across all years
+df_quadrat <- df_quadrat[year > 1982 & year < 2015, .(
+  agb = mean(agb), awp = mean(awp)
+), .(quadrat)]
+
+# add quadrat coordinates
+df_quadrat$X <- as.numeric(substr(df_quadrat$quadrat, 1, 2))*20 + 10
+df_quadrat$Y <- as.numeric(substr(df_quadrat$quadrat, 3, 4))*20 + 10
+df_quadrat <- subset(df_quadrat, !is.na(quadrat) & quadrat != "")
+
+# 3. by size class
 
 #### Figure 1 - AGB estimation and potential sources of uncertainty ####
 
@@ -175,7 +213,8 @@ fig1a_allom_ind <-
   geom_line() +
   theme_classic() + 
   expand_limits(x = 0, y = 0) +   
-  scale_x_continuous(expand = c(0, 0)) + scale_y_continuous(expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0)) + 
+  scale_y_continuous(expand = c(0, 0)) +
   labs(x = "Stem diameter (cm)",
        y = "Estimated aboveground biomass of trees (Mg)",
        colour = "Allometry used",
@@ -197,6 +236,7 @@ ggpubr::ggarrange(fig1a_allom_ind + theme(legend.position = "none"),
                   labels = c("a", "b", ""), ncol = 3, widths = c(2,2,1))
 ggsave("fig1_allom.pdf", height = 4, width = 10)
 
+# figure 2 ####
 dfcorr <- subset(df_plot, year >= 1985 &
                    (grepl("corr", method) | method == "Chave 2014") & 
                    variable == "agb")
@@ -220,3 +260,26 @@ fig2c_corr_awp <-
 
 ggpubr::ggarrange(fig2b_corr_agb, fig2c_corr_awp, labels = "auto")
 ggsave("fig2_correc.pdf", height = 4, width = 10)
+
+
+# figure 4 ####
+fig4a_map_agb <- ggplot(df_quadrat, aes(x = X, y = Y, fill = agb)) + 
+  geom_raster() + 
+  labs(fill = "AGB\n(Mg/ha)") +
+  coord_equal() + 
+  expand_limits(x = c(0, 1000), y = c(0, 500)) +   
+  scale_x_continuous(expand = c(0, 0)) + 
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_gradientn(colours = rev(heat.colors(10))) + 
+  theme_bw()
+fig4b_map_awp <- ggplot(df_quadrat, aes(x = X, y = Y, fill = awp)) + 
+  geom_raster() + 
+  labs(fill = "AWP\n(Mg/ha/yr)") +
+  coord_equal() + 
+  expand_limits(x = c(0, 1000), y = c(0, 500)) +   
+  scale_x_continuous(expand = c(0, 0)) + 
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_gradientn(colours = rev(heat.colors(10))) + 
+  theme_bw()
+ggpubr::ggarrange(fig4a_map_agb, fig4b_map_awp, ncol = 1, labels = "auto")
+ggsave("fig4_map.pdf", height = 4, width = 4)

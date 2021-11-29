@@ -166,23 +166,15 @@ ExpDiffAGB = function(d, wd, lambda, mu, sigma) {
 # Kohyama correction function ####
 # instanteneous biomass (or other) fluxes as recommended by Kohyama 2019 (eq 1-2 in Table 1)
 
-kohyama_correction <- function(stock, influx, outflux) {
-  dt_sub = dt[variable %in% vars, .(value = sum(value * weight) / sum(weight),
-                                    weight = sum(weight)),
-              .(dT, year, variable, group, site)]
-  dt_new = dcast(dt_sub, year + dT + site + weight + group ~ variable)
-  dt_new$B0 = dt_new[, vars[1], with = FALSE]
-  dt_new$gain = dt_new[, vars[2], with = FALSE]
-  dt_new$loss = dt_new[, vars[3], with = FALSE]
-  dt_new[, BS0 := B0 - loss * dT]
-  dt_new[, BT := B0 + (gain - loss) * dT]
-  dt_new[, vars[2] := (log(BT / BS0) * (BT - B0)) / (dT * log(BT / B0))]
-  dt_new[, vars[3] := (log(B0 / BS0) * (BT - B0)) / (dT * log(BT / B0))]
-  
-  dt_new = melt(dt_new,
-                id.vars = c("site", "weight", "group"),
-                measure.vars = vars)
-  dt_corr = rbind(dt[!variable %in% vars, colnames(dt_new), with = FALSE], dt_new)
-  dt_corr = subset(dt_corr,!is.na(value))
-  return(dt_corr)
+kohyama_correction <- function(stock, gain, loss, dT, output = "prod") {
+  B0 <- stock
+  BS0 <- B0 - loss * dT
+  BT <- B0 + (gain - loss) * dT
+  if (output == "prod") {
+    outp <- (log(BT / BS0) * (BT - B0)) / (dT * log(BT / B0))
+  } else if (output == "mort"){
+    outp <- (log(B0 / BS0) * (BT - B0)) / (dT * log(BT / B0))
+  } else 
+    stop("Please provide either 'prod' (production) or 'mort' (mortality) as an output.")
+  return(outp)
 }
