@@ -4,28 +4,6 @@
 # Author: Camille Piponiot, github.com/cpiponiot  #
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 
-# list of package dependencies
-req_packages <-
-  c("rdryad",
-    "data.table",
-    "ggplot2",
-    "utils",
-    "truncnorm",
-    "ggpubr",
-    "readxl")
-
-# packages that are not yet installed on the computer
-ins_packages <-  req_packages[!(req_packages %in% rownames(installed.packages()))]
-
-# install missing packages
-if (length(ins_packages) > 0) 
-  install.packages(ins_packages)
-
-# load packages
-library(ggplot2)
-
-# source internal functions 
-source("functions.R")
 
 ### Get BCI 50-ha plot data ####
 
@@ -249,184 +227,28 @@ df_pft <- df_pft[year > 1982 & year < 2015, .(
   agb = mean(agb), awp = mean(awp)
 ), .(PFT)]
 
-#### Figure 1 - AGB estimation and potential sources of uncertainty ####
-
-# create data table for illustrating different allometric equations at the
-# individual tree level
-dfallom <- data.table::data.table(expand.grid(dbh = 1:200, wd = c(0.4, 0.8)))
-
-# Chave et al 2014 allometric equation, no height information
-dfallom[, chave14 := agb_bci(dbh = dbh, wd = wd, method = "chave14")]
-
-# Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2019
-dfallom[, chave14_h := agb_bci(dbh = dbh, wd = wd, method = "chave14", use_height_allom = TRUE)]
-
-# Chave et al 2005 allometric equation, no height information
-dfallom[, chave05 := agb_bci(dbh = dbh, wd = wd, method = "chave05")]
-
-# Chave et al 2005 allometric equation, tree height from Martinez Cano et al., 2019
-dfallom[, chave05_h := agb_bci(dbh = dbh, wd = wd, method = "chave05", use_height_allom = TRUE)]
-
-dfallom <- data.table::melt(dfallom, measure.vars = grep("chave", colnames(dfallom)), 
-                            variable.name = "method", value.name = "agb")
-levels(dfallom$method) <- list("Chave 2014" = "chave14", 
-                               "Chave 2014 + height allom" = "chave14_h", 
-                               "Chave 2005" = "chave05", 
-                               "Chave 2005 + height allom" = "chave05_h")
-fig1a_allom_ind <-
-  ggplot(dfallom, aes(
-    x = dbh,
-    y = agb,
-    colour = method,
-    linetype = as.factor(wd)
-  )) +
-  geom_line() +
-  theme_classic() + 
-  expand_limits(x = 0, y = 0) +   
-  scale_x_continuous(expand = c(0, 0)) + 
-  scale_y_continuous(expand = c(0, 0)) +
-  labs(x = "Stem diameter (cm)",
-       y = "Estimated aboveground biomass of trees (Mg)",
-       colour = "Allometry used",
-       lty = "Wood density") 
-fig1_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig1a_allom_ind))
-
-fig1b_allom_plot <- ggplot(subset(df_plot, year >= 1985 & !grepl("tion", method))) +
-  geom_line(aes(x = year, y = value, color = method)) +
-  theme_classic() +
-  # expand_limits(y = 0) +   
-  # scale_y_continuous(expand = c(0, 0)) +
-  labs(x = "Census year",
-       y = "Estimated plot aboveground biomass (Mg/ha)",
-       colour = "Allometry used") +
-  theme(legend.position = "none")
-
-ggpubr::ggarrange(fig1a_allom_ind + theme(legend.position = "none"), 
-                  fig1b_allom_plot, fig1_leg, 
-                  labels = c("a", "b", ""), ncol = 3, widths = c(2,2,1))
-ggsave("fig1_allom.pdf", height = 4, width = 10)
-
-# figure 2 ####
-# fig2a - illustration with one problematic tree
 df_929 <- subset(df_stem, stemID==929)
-df_929 <- data.table::melt(df_929, measure.vars = c("dbh", "hom"), id.vars = "year")
-levels(df_929$variable) <- c("Measured diameter (cm)", "Height of measurement (m)")
-fig2a_corr_tree <- ggplot(df_929, aes(x = year, y = value, color = variable)) +
-  geom_point() + 
-  labs(y = "", x = "Census year", title = "Tree #929") +
-  facet_wrap(~variable, ncol = 1, scales = "free_y", 
-             strip.position = "left")+
-  theme_classic() +
-  theme(legend.position = "none", 
-        strip.placement = "outside", 
-        strip.background = element_blank()) 
+save(df_plot, df_size, df_pft, df_929, file = "data/data-main-script.rda")
 
-# fig2b - corrections on plot AGB
-dfcorr <- subset(df_plot, year >= 1985 &
-                   (grepl("corr", method) | method == "Chave 2014") & 
-                   variable == "agb")
-levels(dfcorr$method)[levels(dfcorr$method) == "Chave 2014"] <- "No correction"
-
-fig2b_corr_agb <-
-  ggplot(dfcorr) +
-  geom_line(aes(x = year, y = value, color = method)) +
-  theme_classic() +
-  labs(x = "Census year",
-       y = "Estimated plot aboveground biomass (Mg/ha)",
-       colour = "Correction applied") + 
-  theme(legend.position = c(.75, .55))
-
-fig2c_corr_awp <-
-  ggplot(subset(df_plot, year >= 1985 & year < 2015 & variable == "awp")) +
-  geom_line(aes(x = year, y = value, color = method)) +
-  theme_classic() +
-  labs(x = "Census year",
-       y = "Estimated plot aboveground woody \nproductivity (Mg/ha/yr)",
-       colour = "Correction applied") + 
-  theme(legend.position = c(.5, .75))
-
-ggpubr::ggarrange(fig2a_corr_tree, fig2b_corr_agb, fig2c_corr_awp, 
-                  nrow = 1, labels = "auto")
-ggsave("fig2_correc.pdf", height = 4, width = 12)
-
-# figure 3 ####
-
-# estimate percentage of each size class per variable
-df_size[, `:=`(agb = agb/sum(agb), awp = awp/sum(awp))]
-# revert order of size classes to have bigger trees above
-df_size$size <- factor(df_size$size, levels = rev(levels(df_size$size)))
-
-# figure 3a 
-fig3a_groups_size <- ggplot(df_size, aes(x = agb*100, y = awp*100, 
-                                         colour = size)) + 
-  geom_abline(slope = 1, intercept = 0, lty = 2) +
-  geom_point() + 
-  labs(x = "Proportion of AGB (%)", y = "Proportion of AWP (%)", 
-       color = "Diameter\nclass (cm)") +
-  expand_limits(x = c(0, 40), y = c(0, 40)) +   
-  scale_x_continuous(expand = c(0, 0)) +  
-  scale_y_continuous(expand = c(0, 0)) +  
-  coord_equal() +
-  # scale_color_manual(values = terrain.colors(7)[-7]) +
-  theme_classic()
-
-df_pft[, `:=`(agb = agb/sum(agb), awp = awp/sum(awp))]
-fig3b_groups_pft <- ggplot(df_pft, aes(x = agb*100, y = awp*100, 
-                                         colour = PFT)) + 
-  geom_abline(slope = 1, intercept = 0, lty = 2) +
-  geom_point() + 
-  labs(x = "Proportion of AGB (%)", y = "Proportion of AWP (%)", 
-       color = "PFT") +
-  expand_limits(x = c(0, 45), y = c(0, 45)) +   
-  scale_x_continuous(expand = c(0, 0)) +  
-  scale_y_continuous(expand = c(0, 0)) +  
-  coord_equal() +
-  theme_classic()
-
-df_size_bis <- data.table::melt(df_size, measure.vars = c("agb", "awp"))
-# change variable labels (AGB, AWP) to upper case
-levels(df_size_bis$variable) <- toupper(levels(df_size_bis$variable))
-# figure 3a bis
-fig3a_bis_groups_size <- ggplot(df_size_bis) + 
-  geom_col(aes(x = variable, y = value*100, fill = size)) + 
-  labs(x = "", y = "Proportion (%)", fill = "Diameter\nclass (cm)") +
-  scale_y_continuous(expand = c(0, 0)) +  
-  theme_classic()
-
-df_pft_bis <- data.table::melt(df_pft, measure.vars = c("agb", "awp"))
-# change variable labels (AGB, AWP) to upper case
-levels(df_pft_bis$variable) <- toupper(levels(df_pft_bis$variable))
-# figure 3a bis
-fig3b_bis_groups_pft <- ggplot(df_pft_bis) + 
-  geom_col(aes(x = variable, y = value*100, fill = PFT)) + 
-  labs(x = "", y = "Proportion (%)", fill = "PFT") +
-  scale_y_continuous(expand = c(0, 0)) +  
-  theme_classic()
-
-ggpubr::ggarrange(fig3a_groups_size, fig3b_groups_pft, ncol = 2, labels = "auto")
-ggsave("fig3_groups.pdf", height = 4, width = 8)
-
-ggpubr::ggarrange(fig3a_bis_groups_size, fig3b_bis_groups_pft, ncol = 2, labels = "auto")
-ggsave("fig3_groups_bis.pdf", height = 4, width = 8)
-
-# figure 4 ####
-fig4a_map_agb <- ggplot(df_quadrat, aes(x = X, y = Y, fill = agb)) + 
-  geom_raster() + 
-  labs(fill = "AGB\n(Mg/ha)") +
-  coord_equal() + 
-  expand_limits(x = c(0, 1000), y = c(0, 500)) +   
-  scale_x_continuous(expand = c(0, 0)) + 
-  scale_y_continuous(expand = c(0, 0)) +
-  scale_fill_gradientn(colours = rev(heat.colors(10))) + 
-  theme_bw()
-fig4b_map_awp <- ggplot(df_quadrat, aes(x = X, y = Y, fill = awp)) + 
-  geom_raster() + 
-  labs(fill = "AWP\n(Mg/ha/yr)") +
-  coord_equal() + 
-  expand_limits(x = c(0, 1000), y = c(0, 500)) +   
-  scale_x_continuous(expand = c(0, 0)) + 
-  scale_y_continuous(expand = c(0, 0)) +
-  scale_fill_gradientn(colours = rev(heat.colors(10))) + 
-  theme_bw()
-ggpubr::ggarrange(fig4a_map_agb, fig4b_map_awp, ncol = 1, labels = "auto")
-ggsave("fig4_map.pdf", height = 4, width = 4)
+# 
+# # figure 4 ####
+# fig4a_map_agb <- ggplot(df_quadrat, aes(x = X, y = Y, fill = agb)) + 
+#   geom_raster() + 
+#   labs(fill = "AGB\n(Mg/ha)") +
+#   coord_equal() + 
+#   expand_limits(x = c(0, 1000), y = c(0, 500)) +   
+#   scale_x_continuous(expand = c(0, 0)) + 
+#   scale_y_continuous(expand = c(0, 0)) +
+#   scale_fill_gradientn(colours = rev(heat.colors(10))) + 
+#   theme_bw()
+# fig4b_map_awp <- ggplot(df_quadrat, aes(x = X, y = Y, fill = awp)) + 
+#   geom_raster() + 
+#   labs(fill = "AWP\n(Mg/ha/yr)") +
+#   coord_equal() + 
+#   expand_limits(x = c(0, 1000), y = c(0, 500)) +   
+#   scale_x_continuous(expand = c(0, 0)) + 
+#   scale_y_continuous(expand = c(0, 0)) +
+#   scale_fill_gradientn(colours = rev(heat.colors(10))) + 
+#   theme_bw()
+# ggpubr::ggarrange(fig4a_map_agb, fig4b_map_awp, ncol = 1, labels = "auto")
+# ggsave("fig4_map.pdf", height = 4, width = 4)
