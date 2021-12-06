@@ -54,6 +54,17 @@ df_stem[, dbh := dbh/10]
 # remove measures under 1 cm 
 df_stem <- subset(df_stem, dbh >= 1 | is.na(dbh))
 
+# remove large strangler figs (> 50 cm DBH) from the following species: Ficus
+# costaricana, Ficus obtusifolia, Ficus popenoei, and Ficus trigonata (see
+# Rutishauser et al 2020)
+
+str_figs <- subset(df_stem, (dbh > 50 & Genus == "Ficus" & Species %in% c("costaricana", "obtusifolia", "popenoei", "trigonata")))
+length(unique(str_figs$quadrat))
+length(unique(str_figs$treeID))
+str_figs[, .(nquadrat = length(unique(quadrat)), nfigs = length(unique(treeID))), .(census_year)]
+
+df_stem <- subset(df_stem, ! treeID %in% str_figs$treeID)
+
 ### estimate individual aboveground biomass using different methods ####
 
 # no correction
