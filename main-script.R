@@ -83,7 +83,9 @@ df_stem[, chave05_h := agb_bci(dbh = dbh, wd = wsg, method = "chave05", use_heig
 
 # corr1: taper correction
 # from Cushman et al., 2021, using WSG 
-df_stem[, b := 0.151 - 0.025 * log(dbh) - 0.02 * log(hom) - 0.021 * log(wsg)]
+# df_stem[, b := 0.151 - 0.025 * log(dbh) - 0.02 * log(hom) - 0.021 * log(wsg)]
+# from Cushman et al., 2014
+df_stem[, b := exp(-2.0205 - 0.5053 * log(dbh) + 0.3748 * log(hom))]
 df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
 df_stem[, chave14_t := agb_bci(dbh = dbh_t, wd = wsg)]
 
