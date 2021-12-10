@@ -65,6 +65,9 @@ str_figs[, .(nquadrat = length(unique(quadrat)), nfigs = length(unique(treeID)))
 
 df_stem <- subset(df_stem, ! treeID %in% str_figs$treeID)
 
+# remove first census year
+df_stem <- subset(df_stem, year > 1982)
+
 ### estimate individual aboveground biomass using different methods ####
 
 # no correction
@@ -87,22 +90,46 @@ df_stem[, chave05_h := agb_bci(dbh = dbh, wd = wsg, method = "chave05", use_heig
 # from Cushman et al., 2014
 df_stem[, b := exp(-2.0205 - 0.5053 * log(dbh) + 0.3748 * log(hom))]
 df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
-df_stem[, chave14_t := agb_bci(dbh = dbh_t, wd = wsg)]
+df_stem[, agb_t := agb_bci(dbh = dbh_t, wd = wsg)]
 
 # corr2: interpolate missing DBHs
 df_stem[, dbh_ti := interpolate_missing(dbh_t, year, DFstatus), .(stemID)]
-df_stem[, chave14_ti := agb_bci(dbh = dbh_ti, wd = wsg)]
+missingIDs <- unique(subset(df_stem, is.na(dbh_t) & !is.na(dbh_ti))$stemID)
+subset(df_stem, stemID==missingIDs[1])[, c("stemID", "year", "Latin", "dbh", "dbh_t", "dbh_ti")]
 
-# corr3: replace DHB or AGB growth
-# estimate dbh variation between two censuses, in cm/yr
-df_stem[, Ddbh := c(diff(dbh_ti)/diff(year), NA), .(stemID)]
-df_stem[, Dagb := c(diff(chave14)/diff(year), NA), .(stemID)]
+# remove non-measurements 
+df_stem <- subset(df_stem, !is.na(dbh_ti))
+df_stem[, dbh_t := dbh_ti]
 
-# size groups / other grouping factors?
+# corr3: replace DHB or AGB growth ####
+
+# estimate dbh and agb variation between two censuses, in cm/yr; with or without
+# taper correction
+df_stem[, Ddbh := c(diff(dbh)/diff(year), NA), .(stemID)]
+df_stem[, Ddbh_t := c(diff(dbh_t)/diff(year), NA), .(stemID)]
+df_stem[, Dagb := c(diff(agb_t)/diff(year), NA), .(stemID)]
+df_stem[, Dagb_t := c(diff(agb_t)/diff(year), NA), .(stemID)]
+df_stem[, dT := c(diff(year), NA), .(stemID)]
+
+# size groups 
 maxD <- ceiling(max(df_stem$dbh_ti, na.rm = TRUE))
-df_stem[, size := cut(dbh_ti, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = TRUE)]
+df_stem[, size := cut(dbh_t, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = TRUE)]
 
-# functional groups, based on Ruger et al 2020, Data S1
+## change abnormal dbh changes, grouping by size
+df_stem[!is.na(Ddbh), `:=`(
+  Ddbh_ts = substitute_change(varD = Ddbh_t, cut = c(-0.5, 5)),
+  Dagb_ts = substitute_change(D = dbh_t, varD = Ddbh_t, WD = wsg, 
+                             value = "AGB", cut = c(-0.5, 5))),
+  size]
+
+## translate dbh values (or agb values) with substituted dbh or agb
+data.table::setorder(df_stem, year)
+df_stem[, dbh_ts := dbh_t[1] + c(0, cumsum_naomit(Ddbh_ts*dT)[-length(dT)]), .(stemID)]
+# df_stem[, agb_ts := agb_bci(dbh = dbh_ts, wd = wsg)]
+df_stem[, agb_ts := agb_t[1] + c(0, cumsum_naomit(Dagb_ts*dT)[-length(dT)]), .(stemID)]
+
+
+# add functional groups, based on Ruger et al 2020, Data S1
 # download data
 if (!file.exists("ruger_data_s1.xlsx"))
   utils::download.file(url = "https://www.science.org/doi/suppl/10.1126/science.aaz4797/suppl_file/aaz4797_ruger_data_s1.xlsx", 
@@ -120,14 +147,6 @@ ruger_data <- merge(ruger_data, ruger_levels)
 # add PFTs to df_stem
 df_stem <- merge(df_stem, ruger_data[, c("sp", "PFT")], all.x = TRUE)
 
-## change abnormal dbh changes, grouping by size
-df_stem[!is.na(Ddbh), `:=`(
-  Ddbh_s = substitute_change(varD = Ddbh, cut = c(-0.5, 5)),
-  Dagb_s = substitute_change(D = dbh_ti, varD = Ddbh, WD = wsg, 
-                             value = "AGB", cut = c(-0.5, 5))),
-  size]
-
-
 # plot-level AGB and AWP ####
 
 # melt to long format with a method column = allometries and methods used, and
@@ -136,59 +155,55 @@ df_stem_melt <-
   data.table::melt(
     df_stem,
     id.vars = c("stemID", "treeID", "census_year", "quadrat", "DFstatus", "size", "PFT"), 
-    measure.vars = grep("chave|Dagb", colnames(df_stem)),
+    measure.vars = grep("chave|Dagb|agb_", colnames(df_stem)),
     variable.name = "method",
-    value.name = "agb"
   )
 
+df_stem_melt[, variable := c("agb", "awp")[grepl("Dagb", method) + 1]]
+df_stem_melt[grepl("_ts", method), method := "chave14+taper+subs"]
+df_stem_melt[grepl("_t", method), method := "chave14+taper"]
+df_stem_melt[method == "Dagb", method := "chave14"]
+
 # replace NAs with 0 in agb values
-df_stem_melt[is.na(agb), agb := 0]
+df_stem_melt[is.na(value), value := 0]
 
 # aggregate agb values ####
 # agb in Mg/ha (divide by area = 50 ha)
 # 1. by year ####
-df_plot <- df_stem_melt[, .(value = sum(agb) / 50), .(method, year = census_year)]
-df_plot[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
-
-levels(df_plot$method) <- list("Chave 2014" = "chave14", 
-                               "Chave 2014 + height allom" = "chave14_h", 
-                               "Chave 2005" = "chave05", 
-                               "Chave 2005 + height allom" = "chave05_h", 
-                               "Taper correction" = "chave14_t", 
-                               "Taper correction\n+ missing stems" = "chave14_ti", 
-                               "No correction" = "Dagb", 
-                               "Substitution" = "Dagb_s")
+df_plot <- df_stem_melt[, .(value = sum(value) / 50), .(method, variable, year = census_year)]
 
 # corr4: kohyama correction 
 # > need to estimate mortality
-dfK <-
-  df_plot[year > 1982 &
-            method %in% c("Substitution", "Taper correction\n+ missing stems")]
-dfK <- data.table::dcast(dfK, year ~ variable)
+dfK <- df_plot[!grepl("chave05|_h", method)]
+dfK <- data.table::dcast(dfK, year  + method ~ variable)
+# estimate mortality from agb and awm (analogous to turnover rate)
 dfK[order(year), `:=` (dT = c(diff(year), NA), 
-                       awm = awp - c(diff(agb)/diff(year), NA))]
-dfK[, awp_k := kohyama_correction(agb, awp, awm, dT)]
-dfK <- data.table::data.table(method = "kohyama", year = dfK$year, 
-                              value = dfK$awp_k, variable = "awp")
-df_plot <- rbind(df_plot, dfK)
+                       awm = awp - c(diff(agb)/diff(year), NA)), .(method)]
+# apply kohyama correction 
+dfK[, value := kohyama_correction(agb, awp, awm, dT), .(method)]
+dfK[, `:=`(method = paste0(method, "+kohyama"), variable = "awp")]
+
+df_plot <- rbind(df_plot, dfK[, colnames(df_plot), with = FALSE])
+
 
 # 2. by quadrat ####
-df_quadrat <- df_stem_melt[, .(value = sum(agb) / 0.2^2), 
-                           .(method, year = census_year, quadrat)]
-df_quadrat[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
+df_quadrat <- df_stem_melt[, .(value = sum(value) / 0.2^2), 
+                           .(variable, method, year = census_year, quadrat)]
+
+# only use corrected measurements (?)
+df_quadrat <- df_quadrat[method == "chave14+taper+subs"]
+df_quadrat <- data.table::dcast(df_quadrat, year + quadrat ~ variable)
 
 # kohyama correction 
 # > need to estimate mortality
-df_quadrat <- df_quadrat[method %in% c("chave14_ti", "Dagb_s")]
-df_quadrat <- data.table::dcast(df_quadrat, year + quadrat ~ variable)
 df_quadrat[order(year), `:=` (dT = c(diff(year), NA), 
                               awm = awp - c(diff(agb)/diff(year), NA)), .(quadrat)]
-df_quadrat[, awp_k := kohyama_correction(agb, awp, awm, dT)]
-df_quadrat[, `:=`(dT = NULL, awp = awp_k, awm = NULL, awp_k = NULL)]
+df_quadrat[, awp := kohyama_correction(agb, awp, awm, dT)]
+df_quadrat[, `:=`(dT = NULL, awm = NULL)]
 
 # mean across all years
-df_quadrat <- df_quadrat[year > 1982 & year < 2015, .(
-  agb = mean(agb), awp = mean(awp)
+df_quadrat <- df_quadrat[, .(
+  agb = mean(agb), awp = mean(awp[year < 2015])
 ), .(quadrat)]
 
 # add quadrat coordinates
@@ -197,51 +212,56 @@ df_quadrat$Y <- as.numeric(substr(df_quadrat$quadrat, 3, 4))*20 + 10
 df_quadrat <- subset(df_quadrat, !is.na(quadrat) & quadrat != "")
 
 # 3. by size class ####
-df_size <- df_stem_melt[, .(value = sum(agb) / 50), 
-                        .(method, year = census_year, size)]
-df_size[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
+df_size <- df_stem_melt[, .(value = sum(value) / 50), 
+                        .(variable, method, year = census_year, size)]
+
+# only use corrected measurements (?)
+df_size <- df_size[method == "chave14+taper+subs"]
+df_size <- data.table::dcast(df_size, year + size ~ variable)
 
 # kohyama correction 
 # > need to estimate mortality
-df_size <- df_size[method %in% c("chave14_ti", "Dagb_s")]
-df_size <- data.table::dcast(df_size, year + size ~ variable)
 df_size[order(year), `:=` (
   dT = c(diff(year), NA), 
   awm = awp - c(diff(agb)/diff(year), NA)
 ), .(size)]
-df_size[, awp_k := kohyama_correction(agb, awp, awm, dT)]
-df_size[, `:=`(dT = NULL, awp = awp_k, awm = NULL, awp_k = NULL)]
+df_size[, awp := kohyama_correction(agb, awp, awm, dT)]
+df_size[, `:=`(dT = NULL, awm = NULL)]
 
 # mean across all years
-df_size <- df_size[!is.na(size) & year > 1982 & year < 2015, .(
-  agb = mean(agb), awp = mean(awp)
+df_size <- df_size[!is.na(size) , .(
+  agb = mean(agb), awp = mean(awp[year < 2015])
 ), .(size)]
 
 # 4. by functional group ####
 # xxx create function for this
-df_pft <- df_stem_melt[, .(value = sum(agb) / 50), 
-                        .(method, year = census_year, PFT)]
-df_pft[, variable := c("agb", "awp")[grepl("Dagb", method)+1]]
+df_pft <- df_stem_melt[, .(value = sum(value) / 50), 
+                        .(variable, method, year = census_year, PFT)]
+
+# only use corrected measurements (?)
+df_pft <- df_pft[method == "chave14+taper+subs"]
+df_pft <- data.table::dcast(df_pft, year + PFT ~ variable)
 
 # kohyama correction 
 # > xxx need to estimate mortality
-df_pft <- df_pft[method %in% c("chave14_ti", "Dagb_s")]
-df_pft <- data.table::dcast(df_pft, year + PFT ~ variable)
 df_pft[order(year), `:=` (
   dT = c(diff(year), NA), 
   awm = awp - c(diff(agb)/diff(year), NA)
 ), .(PFT)]
 
-df_pft[, awp_k := kohyama_correction(agb, awp, awm, dT)]
-df_pft[, `:=`(dT = NULL, awp = awp_k, awm = NULL, awp_k = NULL)]
+df_pft[, awp := kohyama_correction(agb, awp, awm, dT)]
+df_pft[, `:=`(dT = NULL, awm = NULL)]
 
 # mean across all years
-df_pft <- df_pft[year > 1982 & year < 2015, .(
-  agb = mean(agb), awp = mean(awp)
+df_pft <- df_pft[, .(
+  agb = mean(agb), awp = mean(awp[year < 2015])
 ), .(PFT)]
 
-df_929 <- subset(df_stem, stemID==929)
-save(df_plot, df_size, df_pft, df_929, file = "data/data-main-script.rda")
+# individual tree table 
+df_ind <- subset(df_stem, stemID==2031)
+
+# save results
+save(df_plot, df_size, df_pft, df_ind, file = "data/data-main-script.rda")
 
 # 
 # # figure 4 ####

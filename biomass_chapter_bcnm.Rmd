@@ -108,15 +108,17 @@ fig1a_allom_ind <-
 fig1_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig1a_allom_ind))
 
 # subset data frame to get only biomass estimates without corrections
-df_agb <- subset(df_plot, year >= 1985 & variable == "agb" & !grepl("tion", method))
+df_agb <- subset(df_plot, variable == "agb" & !grepl("\\+", method))
 
 # change order of method levels to have the legend in the same order as the lines in the figure
-df_agb$method <- factor(df_agb$method,
-                        levels = paste0(rep(c("Chave 2005", "Chave 2014"), 2),
-                                        rep(c("", " + height allom"), each = 2)))
+df_agb$method <- factor(df_agb$method, levels = c("chave05", "chave14", "chave05_h", "chave14_h"))
+levels(df_agb$method) <- list("Chave 2005" = "chave05",
+                              "Chave 2014" = "chave14",
+                              "Chave 2005 + height allom" = "chave05_h",
+                              "Chave 2014 + height allom" = "chave14_h")
 
-fig1b_allom_plot <- ggplot(df_agb) +
-  geom_line(aes(x = year, y = value, color = method)) +
+fig1b_allom_plot <- ggplot(df_agb, aes(x = year, y = value, color = method)) +
+  geom_point() + geom_line(lty = 2) + 
   theme_classic() +
   expand_limits(y = 0) +
   scale_y_continuous(expand = c(0, 0)) +
@@ -130,47 +132,93 @@ ggpubr::ggarrange(fig1a_allom_ind + theme(legend.position = "none"),
                   labels = c("a", "b", ""), ncol = 3, widths = c(2,2,1))
 ```
 
-```{r fig2-correc, fig.height = 4, fig.width = 12}
+```{r fig2-correc, fig.height = 8, fig.width = 12}
 # Figure 2 - Corrections ####
 # fig2a - illustration with one problematic tree
-df_929 <- data.table::melt(df_929, measure.vars = c("dbh", "hom"), id.vars = "year")
-levels(df_929$variable) <- c("Measured diameter (cm)", "Height of measurement (m)")
-fig2a_corr_tree <- ggplot(df_929, aes(x = year, y = value, color = variable)) +
+df_ind$agb <- df_ind$chave14
+# could substitute dbh with agb
+vars <- paste0(rep(c("D", ""), each = 3), "agb", c("", "_t", "_ts"))
+df_ind_melt <- data.table::melt(df_ind, measure.vars = vars, id.vars = "year")
+
+df_ind_melt[, method := data.table::tstrsplit(variable, "_")[[2]]]
+df_ind_melt[is.na(method), method := "original"]
+df_ind_melt[, variable := data.table::tstrsplit(variable, "_")[[1]]]
+
+# change name of methods and variable levels
+df_ind_melt$method <- factor(df_ind_melt$method, levels = c("original", "t", "ts"))
+levels(df_ind_melt$method) <- list("Original data" = "original",
+                                   "Taper correction" = "t", 
+                                   "Taper correction + Outlier substitution" = "ts")
+
+df_ind_melt$variable <- factor(df_ind_melt$variable, levels = c("agb", "Dagb"))
+levels(df_ind_melt$variable) <- list("AGB (Mg)" = "agb", "AWP (Mg/yr)" = "Dagb")
+
+# make panel labels 
+dflabs <- data.frame(variable = levels(df_ind_melt$variable), label = letters[1:2])
+
+# amke individual level panels a and b
+fig2ab_corr_tree <- ggplot(df_ind_melt, aes(x = year, y = value, color = method)) +
+  geom_line(lty = 2) +
   geom_point() + 
-  labs(y = "", x = "Census year", title = "Tree #929") +
-  facet_wrap(~variable, ncol = 1, scales = "free_y", 
-             strip.position = "left")+
+  geom_line(data = subset(df_ind_melt, method=="Taper correction"), lty = 2) +
+  geom_line(data = subset(df_ind_melt, method=="Original data"), lty = 2) +
+  geom_point(data = subset(df_ind_melt, method=="Taper correction")) +
+  geom_point(data = subset(df_ind_melt, method=="Original data")) +
+  geom_hline(yintercept = 0, lty = 2) + 
+  geom_text(data = dflabs, aes(label = label), size = 6, hjust = 3, vjust = -1,
+            x= -Inf, y = Inf, inherit.aes = FALSE) +
+  coord_cartesian(clip = "off") +
+  expand_limits(y = 0) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(y = "", x = "", title = "Individual tree level (tree #2031)") +
+  scale_color_manual(values = c("black", "#1F78B4", "#E31A1C")) +
   theme_classic() +
-  theme(legend.position = "none", 
-        strip.placement = "outside", 
-        strip.background = element_blank()) 
+  theme(strip.placement = "outside", 
+        strip.background = element_blank(), 
+        legend.position = "none") +
+  facet_wrap(~variable, scales = "free", strip.position = "left")
 
 # fig2b - corrections on plot AGB
-dfcorr <- subset(df_plot, year >= 1985 &
-                   (grepl("corr", method) | method == "Chave 2014") & 
-                   variable == "agb")
-levels(dfcorr$method)[levels(dfcorr$method) == "Chave 2014"] <- "No correction"
+dfcorr <- subset(df_plot, !grepl("chave05|_h", method) & year >= 1985 & year < 2015 )
+# change order of method and variable levels
+dfcorr$method <- factor(dfcorr$method, levels = unique(dfcorr$method))
+levels(dfcorr$method) <- list("Original data" = "chave14", 
+                               "Taper correction" = "chave14+taper", 
+                               "Taper correction + Outlier substitution" = "chave14+taper+subs", 
+                               "Original data+ Kohyama correction" = "chave14+kohyama",
+                               "Taper correction+ Kohyama correction" = "chave14+taper+kohyama",
+                              "Taper correction+ Outlier substitution\n+ Kohyama correction" = "chave14+taper+subs+kohyama")
 
-fig2b_corr_agb <-
-  ggplot(dfcorr) +
-  geom_line(aes(x = year, y = value, color = method)) +
+
+dfcorr$variable <- factor(dfcorr$variable, levels = c("agb", "awp"))
+levels(dfcorr$variable) <- list("AGB (Mg/ha)" = "agb", "AWP (Mg/ha/yr)" = "awp")
+
+# make panel labels 
+dflabs <- data.frame(variable = levels(dfcorr$variable), label = letters[3:4])
+
+fig2cd_corr_plot <-
+  ggplot(dfcorr, aes(x = year, y = value, color = method)) +
+  geom_point() + geom_line(lty = 2) +
+  geom_line(data = subset(dfcorr, method=="Original data"), lty = 2) +
+  geom_point(data = subset(dfcorr, method=="Original data")) +
   theme_classic() +
-  labs(x = "Census year",
-       y = "Estimated plot aboveground biomass (Mg/ha)",
-       colour = "Correction applied") + 
-  theme(legend.position = c(.75, .55))
+  geom_text(data = dflabs, aes(label = label), size = 6, hjust = 3, vjust = -1,
+            x= -Inf, y = Inf, inherit.aes = FALSE) +
+  coord_cartesian(clip = "off") +
+  labs(x = "Census year", y = "", colour = "Correction applied", title = "Plot level") + 
+  theme(strip.placement = "outside", 
+        strip.background = element_blank()) +
+  scale_color_manual(values = c("black", "#1F78B4", "#E31A1C", "grey", "#A6CEE3", "#FB9A99")) +
+  facet_wrap(~variable, scales = "free", strip.position = "left") +
+  expand_limits(y = 0) +
+  scale_y_continuous(expand = c(0, 0))
 
-fig2c_corr_awp <-
-  ggplot(subset(df_plot, year >= 1985 & year < 2015 & variable == "awp")) +
-  geom_line(aes(x = year, y = value, color = method)) +
-  theme_classic() +
-  labs(x = "Census year",
-       y = "Estimated plot aboveground woody \nproductivity (Mg/ha/yr)",
-       colour = "Correction applied") + 
-  theme(legend.position = c(.5, .75))
+fig2_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig2cd_corr_plot))
 
-ggpubr::ggarrange(fig2a_corr_tree, fig2b_corr_agb, fig2c_corr_awp, 
-                  nrow = 1, labels = "auto")
+plts <- ggpubr::ggarrange(fig2ab_corr_tree, 
+                  fig2cd_corr_plot + theme(legend.position = "none"), 
+                  nrow = 2)
+ggpubr::ggarrange(plts, fig2_leg, nrow = 1, widths = c(4, 1))
 ```
 
 ```{r fig3-groups, fig.height = 4, fig.width = 8, fig.cap="Stacked barplots showing the proportion of AGB and AWP (%) in different groups. (a) Proportion of AGB (left) and AWP (right) by size class (from blue to red).  Proportion of AGB (left) and AWP (right) by plant functional type as defined in Ruger et al. (2020.)"}
@@ -213,43 +261,43 @@ ggpubr::ggarrange(fig3a_bis_groups_size, fig3b_bis_groups_pft, ncol = 2, labels 
 * How to measure/calculate aboveground biomass stocks 
 
 > The aboveground biomass can be measured directly by harvesting, drying, and weighing the trees. Such destructive methods are expensive, and have never been done on BCI due to restrictions on destructive sampling. Aboveground biomass on BCI was therefore inferred by applying allometric equations based on harvests elsewhere. These allometric equations estimate the biomass of individual trees from their diameters, and sometimes their heights and species wood densities. The estimated aboveground biomass is then summed across all trees to obtain the total aboveground biomass of the stand. 
-    
+
 * Estimating individual tree biomass from allometric equations
 
-    - Estimating of tree biomass from allometric equations requires choosing an equation 
-    
-    - Early equations just based on diameter and few trees (e.g., as used in Chave et al. 2003 paper)
-    
-    - Later equations incorporate tree height, or environmental factors that are proxies for height, as well as wood density (cite papers giving these equations, and papers using them)
-    
-    - For sites where heights of all trees not available (like BCI), this can then also mean choosing a height allometry equation. (cite Martinez-Cano height allometry equation, data)
-    
-    - Wood density assignments also an issue – most often from large taxonomic databases, but there is considerable variation within species, both among and within sites, so more local values better (cite wood density papers, data). 
-    
-    - When converting biomass to carbon, additional issue of carbon fraction, which is variable and little-quantified 
-    
-    - Importance of allometry for biomass stocks at plot level (figure 1, part)
-    
+- Estimating of tree biomass from allometric equations requires choosing an equation 
+
+- Early equations just based on diameter and few trees (e.g., as used in Chave et al. 2003 paper)
+
+- Later equations incorporate tree height, or environmental factors that are proxies for height, as well as wood density (cite papers giving these equations, and papers using them)
+
+- For sites where heights of all trees not available (like BCI), this can then also mean choosing a height allometry equation. (cite Martinez-Cano height allometry equation, data)
+
+- Wood density assignments also an issue – most often from large taxonomic databases, but there is considerable variation within species, both among and within sites, so more local values better (cite wood density papers, data). 
+
+- When converting biomass to carbon, additional issue of carbon fraction, which is variable and little-quantified 
+
+- Importance of allometry for biomass stocks at plot level (figure 1, part)
+
 * Calculating biomass fluxes from allometric equations 
 
-    - Mortality flux – simple, and as corrected by Kohyama
-    
-    - Productivity flux – recruitment and growth – simple, and as corrected 
-    
-    - Note that this woody productivity underestimates true wood production because it misses branch turnover, which is also missing from mortality flux.  
-    
-    - Net flux / net change – simple in principle….
-    
+- Mortality flux – simple, and as corrected by Kohyama
+
+- Productivity flux – recruitment and growth – simple, and as corrected 
+
+- Note that this woody productivity underestimates true wood production because it misses branch turnover, which is also missing from mortality flux.  
+
+- Net flux / net change – simple in principle….
+
 * Complications of nonstandard height of measurement, data QAQC
 
-    - Estimates of biomass stocks and fluxes highly sensitive to procedures applied to deal with nonstandard heights of measurement and outlier values for change in diameter
-    
-    - Muller-Landau book chapter
-    
-    - Cushman taper correction 
-    
-    - Also specific issues with early BCI plot data – measurements of buttressed trees, small stems, no tags on stems so multi-stemmed dynamics problematic
-    
-    - These are why no two papers give the same values for BCI biomass stocks and fluxes!
-    
-    - Importance of QAQC methods for biomass productivity at plot level (figure 1, part)
+- Estimates of biomass stocks and fluxes highly sensitive to procedures applied to deal with nonstandard heights of measurement and outlier values for change in diameter
+
+- Muller-Landau book chapter
+
+- Cushman taper correction 
+
+- Also specific issues with early BCI plot data – measurements of buttressed trees, small stems, no tags on stems so multi-stemmed dynamics problematic
+
+- These are why no two papers give the same values for BCI biomass stocks and fluxes!
+
+- Importance of QAQC methods for biomass productivity at plot level (figure 1, part)

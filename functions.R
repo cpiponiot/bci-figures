@@ -178,3 +178,19 @@ kohyama_correction <- function(stock, gain, loss, dT, output = "prod") {
     stop("Please provide either 'prod' (production) or 'mort' (mortality) as an output.")
   return(outp)
 }
+
+cumsum_naomit <- function (x) cumsum(ifelse(is.na(x), 0, x)) + x*0
+
+resequence <- function (x, dx) {
+  if (any(!is.na(x))) {
+    # get the first non NA measurement (t0: position in the vector)
+    t0 <- which(!is.na(x)) [1]
+    # use only diff x measurements after this first measurement, and remove the
+    # last one that is always NA (by definition)
+    dx <- dx[t0:(length(dx)-1)]
+    # new values: same until t0, then add the cumulative sum of dx to the first
+    # non NA value
+    x <- c(x[1:t0], x[t0] + cumsum_naomit(dx))
+  } 
+  return(x)
+}
