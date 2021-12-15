@@ -60,6 +60,18 @@ Biomass is the mass of all living things in an ecosystem; this amount is usually
 
 The traditional method of estimating tree biomass is to measure the basic characteristics (such as diameter) of all trees in a given area, and derive an estimate of biomass. On Barro Colorado Island, a 50-ha plot was established in 1980 to regularly measure all stems from 1 cm in diameter upward, allowing for an extensive estimate of woody biomass in the plot and its changes over time. In this chapter, we will explore the results of 35 years of measurements on the plot, focusing on aboveground biomass stocks and fluxes: how to estimate them, their temporal and spatial variation on the plot, and their distribution into size and functional groups. We will then briefly present other biomass stocks and fluxes, including below-ground biomass of trees, other plants (lianas, others?)
 
+# Plot-based tree aboveground biomass methods
+
+> something about plot layout, what trees are measured (eg dbh threshold?)
+
+* How to measure/calculate aboveground biomass stocks 
+
+The aboveground biomass can be measured directly by harvesting, drying, and weighing the trees. Such destructive methods are expensive, and have never been done on BCI due to restrictions on destructive sampling. Aboveground biomass on BCI was therefore inferred by applying allometric equations based on harvests elsewhere. These allometric equations estimate the biomass of individual trees from their diameters, and sometimes their heights and species wood densities. The estimated aboveground biomass is then summed across all trees to obtain the total aboveground biomass of the stand.
+
+* Estimating individual tree biomass from allometric equations
+
+Estimating the biomass of an individual tree from allometric equations is not a trivial task, as it requires many choices and approximations. Early allometric equations were calibrated with only a few trees, usually at few sites, and used only diameter as a predictor variable [e.g., as used in @Chave2003]. Later developed equations include a larger number of sites spread across the tropics, incorporate tree height, or environmental factors that are proxies for height, and wood density [@Chave2005;@Chave2014]. Tree height is more difficult to measure than diameter, especially in dense vegetation: for sites where heights of all trees are not available (such as BCI), then a height allometry equation can be chosen [e.g., @MartinezCano2019 which was calibrated to BCI]. Wood density is most often assigned by species from large taxonomic databases [e.g., @Zanne2009], but there is considerable variation within species, both among and within sites. Finally, the conversion of biomass to carbon is also subject to error, as the fraction of carbon in biomass is variable and poorly quantified [@Thomas2012]. The set of choices when estimating tree biomass can therefore have a significant impact on the estimate of plot biomass stocks (Figure \@ref(fig:fig1-allom)a). 
+
 ```{r fig1-allom, fig.height = 4, fig.width = 10,fig.cap="AGB estimates using different allometries (shown by different colors). (a) AGB estimated per individual tree as a function of DBH for trees with different wood densities (plain lines: wood density = 0.4; dotted lines: wood density = 0.8); (b) plot-level AGB for all censuses 1985-2015. The allometries used were: Chave et al.'s (2005) allometry for wet forest stands, without tree height (red lines) or using the generic height allometry of Martinez Caño et al. (2019) developed at BCI (blue lines); or Chave et al.'s (2014) allometry, without tree height (equation 7 - green lines) or with tree height (equation 4 - purple lines) using the generic height allometry of Martinez Caño et al. (2019)."}
 #### Figure 1 - AGB estimation and potential sources of uncertainty ####
 
@@ -132,7 +144,18 @@ ggpubr::ggarrange(fig1a_allom_ind + theme(legend.position = "none"),
                   labels = c("a", "b", ""), ncol = 3, widths = c(2,2,1))
 ```
 
-```{r fig2-correc, fig.height = 8, fig.width = 12}
+* Calculating biomass fluxes from allometric equations 
+
+In addition to biomass stocks, ecologists are also interested in biomass dynamics: changes in biomass over time, which is the net difference between biomass increase due to tree productivity and biomass loss due to tree mortality. Annual mortality is calculated as the biomass of all dead trees between two censuses, divided by the time period between the two censuses. Annual productivity is the annualized sum of the increase in biomass of living trees between two censuses, and the biomass of recruited trees, i.e., trees that were measured for the first time in the last census. These measures are underestimated for two reasons: (i) they do not account for branch turnover, which can be high in the tropics (ref), and (ii) some stems are recruited and die between two censuses, and are therefore never measured. A correction for the latter source of bias has been proposed by @Kohyama2019 and does not require additional measurements (applied in Figure \@ref(fig:fig2-correc)d).
+
+* Complications of nonstandard height of measurement, data QAQC
+
+The standard height for measuring tree diameter is 1.3 m (referred to as diameter at breast height, or DBH), and the vast majority of biomass allometries are calibrated with diameter values at 1.3 m. However, tree diameter is sometimes measured at a different height, for example because of trunk irregularity at 1.3 m height in buttressed trees; due to tree taper, this can lead to underestimation of tree diameter and thus biomass. Change in height of measurement, among other factors such as errors in DBH measurement and reporting, irregular or thorny trunks, and the presence of lianas or strangling figs [@Sheil1995] can lead to outlier values for change in diameter. The cause of these outliers is usually difficult to trace back, making correction difficult, with multiple possible correction procedures that are all subject to bias [@Muller-Landau2014]. Dealing with nonstandard height of measurement can be done by multiplying the measured diameter by a 'taper-correction' factor; such a model has been calibrated with data from BCI [@Cushman2014; see "taper correction" in Figure \@ref(fig:fig2-correc)]. Dealing with outlier changes in diameter can be done by substutiting the outlier values by mean growth of stems with similar characteristics (e.g., similar diameter; see "outlier substitution" in Figure \@ref(fig:fig2-correc)). 
+
+Estimates of biomass stocks and fluxes at the plot level are very sensitive to the choice of biomass allometry (Figure \@ref(fig:fig1-allom)) and to the procedures used to deal with non-standard measurement heights and outliers for diameter changes (Figure \@ref(fig:fig2-correc)). In addition, there are specific problems with the early BCI plot censuses: in the first census, all trees were measured at breast height, even buttress trees with highly irregular trunks; therefore, we have removed the first census (1981-1982) from the figures in this chapter. In the first two censuses, the diameter of small stems (< 5.5 cm) was rounded to the nearest 5 mm, while the diameter of all other stems was reported to the nearest 1 mm; in the last censuses, all stem diameters were reported to 1 mm. Finally, for the first xx censuses, there were no individual stem tags on multi-stemmed trees, making it difficult to estimate their biomass dynamics. Together, these factors explain why no two papers give the same values for BCI biomass stocks and fluxes (Table xx?).
+
+
+```{r fig2-correc, fig.height = 8, fig.width = 12, fig.cap="Some examples of corrections on inidividual tree AGB and AGB changes, and their effect on total plot AGB and AWP. "}
 # Figure 2 - Corrections ####
 # fig2a - illustration with one problematic tree
 df_ind$agb <- df_ind$chave14
@@ -156,7 +179,7 @@ levels(df_ind_melt$variable) <- list("AGB (Mg)" = "agb", "AWP (Mg/yr)" = "Dagb")
 # make panel labels 
 dflabs <- data.frame(variable = levels(df_ind_melt$variable), label = letters[1:2])
 
-# amke individual level panels a and b
+# make individual level panels a and b
 fig2ab_corr_tree <- ggplot(df_ind_melt, aes(x = year, y = value, color = method)) +
   geom_line(lty = 2) +
   geom_point() + 
@@ -164,8 +187,11 @@ fig2ab_corr_tree <- ggplot(df_ind_melt, aes(x = year, y = value, color = method)
   geom_line(data = subset(df_ind_melt, method=="Original data"), lty = 2) +
   geom_point(data = subset(df_ind_melt, method=="Taper correction")) +
   geom_point(data = subset(df_ind_melt, method=="Original data")) +
-  geom_hline(yintercept = 0, lty = 2) + 
-  geom_text(data = dflabs, aes(label = label), size = 6, hjust = 3, vjust = -1,
+  geom_hline(yintercept = 0, lty = 3, variable = "AWP (Mg/yr)") +
+  geom_segment(x = 1990, xend = 2015, y = 10, yend = 10, color = 1, 
+               arrow = arrow(length = unit(0.3, "cm"), ends = "both")) +
+  geom_text(x = 2000, y = 15, label = "HOM = 9 m", color = 1) +
+  geom_text(data = dflabs, aes(label = label), size = 6, hjust = 4, vjust = 1,
             x= -Inf, y = Inf, inherit.aes = FALSE) +
   coord_cartesian(clip = "off") +
   expand_limits(y = 0) +
@@ -175,7 +201,8 @@ fig2ab_corr_tree <- ggplot(df_ind_melt, aes(x = year, y = value, color = method)
   theme_classic() +
   theme(strip.placement = "outside", 
         strip.background = element_blank(), 
-        legend.position = "none") +
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 15)) +
   facet_wrap(~variable, scales = "free", strip.position = "left")
 
 # fig2b - corrections on plot AGB
@@ -202,12 +229,13 @@ fig2cd_corr_plot <-
   geom_line(data = subset(dfcorr, method=="Original data"), lty = 2) +
   geom_point(data = subset(dfcorr, method=="Original data")) +
   theme_classic() +
-  geom_text(data = dflabs, aes(label = label), size = 6, hjust = 3, vjust = -1,
+  geom_text(data = dflabs, aes(label = label), size = 6, hjust = 4, vjust = 1,
             x= -Inf, y = Inf, inherit.aes = FALSE) +
   coord_cartesian(clip = "off") +
   labs(x = "Census year", y = "", colour = "Correction applied", title = "Plot level") + 
   theme(strip.placement = "outside", 
-        strip.background = element_blank()) +
+        strip.background = element_blank(),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 15)) +
   scale_color_manual(values = c("black", "#1F78B4", "#E31A1C", "grey", "#A6CEE3", "#FB9A99")) +
   facet_wrap(~variable, scales = "free", strip.position = "left") +
   expand_limits(y = 0) +
@@ -220,6 +248,7 @@ plts <- ggpubr::ggarrange(fig2ab_corr_tree,
                   nrow = 2)
 ggpubr::ggarrange(plts, fig2_leg, nrow = 1, widths = c(4, 1))
 ```
+
 
 ```{r fig3-groups, fig.height = 4, fig.width = 8, fig.cap="Stacked barplots showing the proportion of AGB and AWP (%) in different groups. (a) Proportion of AGB (left) and AWP (right) by size class (from blue to red).  Proportion of AGB (left) and AWP (right) by plant functional type as defined in Ruger et al. (2020.)"}
 # Figure 3 - AGB per group ####
@@ -256,48 +285,66 @@ fig3b_bis_groups_pft <- ggplot(df_pft_bis) +
 ggpubr::ggarrange(fig3a_bis_groups_size, fig3b_bis_groups_pft, ncol = 2, labels = "auto")
 ```
 
-# Plot-based tree aboveground biomass methods
 
-* How to measure/calculate aboveground biomass stocks 
+# Plot-based tree aboveground biomass results 
 
-> The aboveground biomass can be measured directly by harvesting, drying, and weighing the trees. Such destructive methods are expensive, and have never been done on BCI due to restrictions on destructive sampling. Aboveground biomass on BCI was therefore inferred by applying allometric equations based on harvests elsewhere. These allometric equations estimate the biomass of individual trees from their diameters, and sometimes their heights and species wood densities. The estimated aboveground biomass is then summed across all trees to obtain the total aboveground biomass of the stand. 
+* Temporal variation in BCI woody tree AGB stocks and fluxes 
 
-* Estimating individual tree biomass from allometric equations
+    + Key question / reason for evaluating forest carbon stocks and fluxes is to see if they are increasing or decreasing over time, evaluate relationship with climate
 
-- Estimating of tree biomass from allometric equations requires choosing an equation 
+    + BCI 50 ha plot data, because it spans long time period, provides excellent opportunities to evaluate this.  
 
-- Early equations just based on diameter and few trees (e.g., as used in Chave et al. 2003 paper)
+    + Estimates of BCI stocks and fluxes have varied over time depending on allometric equations used, data QAQC procedure, and even estimates of temporal trends have varied (Table 1, Figure 1)
 
-- Later equations incorporate tree height, or environmental factors that are proxies for height, as well as wood density (cite papers giving these equations, and papers using them)
+    + Overall, no evidence for systematic directional shifts, but clearly strong temporal variation
 
-- For sites where heights of all trees not available (like BCI), this can then also mean choosing a height allometry equation. (cite Martinez-Cano height allometry equation, data)
 
-- Wood density assignments also an issue – most often from large taxonomic databases, but there is considerable variation within species, both among and within sites, so more local values better (cite wood density papers, data). 
+* Contributions to tree AGB stocks and fluxes by subgroups
 
-- When converting biomass to carbon, additional issue of carbon fraction, which is variable and little-quantified 
+    + By size class – Meakem et al. (and Piponiot et al.) 
 
-- Importance of allometry for biomass stocks at plot level (figure 1, part)
+    + By tree functional groups?
 
-* Calculating biomass fluxes from allometric equations 
+        - Emergent, canopy, midstory, understory, shrub
 
-- Mortality flux – simple, and as corrected by Kohyama
+        - The classes defined by Ruger et al.?  but I’m not convinced these are the best definitions…  
 
-- Productivity flux – recruitment and growth – simple, and as corrected 
+    + By tree taxonomic groups – most important families?  
 
-- Note that this woody productivity underestimates true wood production because it misses branch turnover, which is also missing from mortality flux.  
+    + Ref. Fig 2.  
 
-- Net flux / net change – simple in principle….
+*	Spatial variation in BCI AGB stocks and fluxes – within BCI 50 ha plot 
 
-* Complications of nonstandard height of measurement, data QAQC
+    + Variation within the 50 ha plot among topographically defined habitats
 
-- Estimates of biomass stocks and fluxes highly sensitive to procedures applied to deal with nonstandard heights of measurement and outlier values for change in diameter
+    + Effect of lianas – ref chapters on liana removal experiments, on ecology of lianas, and publications including on spatial variation within BCI plot 
 
-- Muller-Landau book chapter
+    + Variation within 50 ha plot in relation to disturbance history / stand structure
 
-- Cushman taper correction 
+        - Section of young forest in north of plot vs. rest
 
-- Also specific issues with early BCI plot data – measurements of buttressed trees, small stems, no tags on stems so multi-stemmed dynamics problematic
+    + Possible figure 3….
 
-- These are why no two papers give the same values for BCI biomass stocks and fluxes!
+*	Spatial variation in BCNM AGB stocks and fluxes from multiple plots, and experimental results 
 
-- Importance of QAQC methods for biomass productivity at plot level (figure 1, part)
+    + 50 ha plot is not representative of whole island much less whole  BCNM 
+
+    + Variation among other plots in the BCNM, as estimated from 1-ha plots and the larger plots based on trees> 20 cm only 
+
+    + Possible TABLE or figure – AGB stocks and fluxes for different plots in BCNM  besides the 50 ha plot, 
+
+        - Large plots on BCI censused only for trees > 20 cm dbh (draw on work by Tori Meakem)
+        
+        - 1-ha plots, previous analyses by Camille
+        
+    + Plot data also used to calibrate remote sensing and these then used to estimate broader spatial patterns – ref other chapter on this.
+
+*	Experimental results from BCNM work on AGB stocks and fluxes 
+
+    + [one sentence on each, and refs to associated chapters)
+
+    + Soil fertility – Gigante fertilization experiments 
+
+    + Litter addition/removal
+
+    + Liana removal 

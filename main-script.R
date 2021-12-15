@@ -24,8 +24,8 @@ zip_folders <- sapply(zip_files, function(dir) {
 load(grep("spp", dryad_data_path$`10.15146/5xcp-0d46`, value = TRUE))
 
 # load stem censuses
-# 1. list census files
-bci_stem <- list.files("bci.stem")
+# 1. list census files, except first census (which has problematic measurements of large trees)
+bci_stem <- list.files("bci.stem")[-1]
 
 # 2. load census files as list
 census_list <- lapply(bci_stem, function(name) {
@@ -64,9 +64,6 @@ length(unique(str_figs$treeID))
 str_figs[, .(nquadrat = length(unique(quadrat)), nfigs = length(unique(treeID))), .(census_year)]
 
 df_stem <- subset(df_stem, ! treeID %in% str_figs$treeID)
-
-# remove first census year
-df_stem <- subset(df_stem, year > 1982)
 
 ### estimate individual aboveground biomass using different methods ####
 
