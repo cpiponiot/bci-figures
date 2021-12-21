@@ -152,7 +152,7 @@ In addition to biomass stocks, ecologists are also interested in biomass dynamic
 
 The standard height for measuring tree diameter is 1.3 m (referred to as diameter at breast height, or DBH), and the vast majority of biomass allometries are calibrated with diameter values at 1.3 m. However, tree diameter is sometimes measured at a different height, for example because of trunk irregularity at 1.3 m height in buttressed trees; due to tree taper, this can lead to underestimation of tree diameter and thus biomass. Change in height of measurement, among other factors such as errors in DBH measurement and reporting, irregular or thorny trunks, and the presence of lianas or strangling figs [@Sheil1995] can lead to outlier values for change in diameter. The cause of these outliers is usually difficult to trace back, making correction difficult, with multiple possible correction procedures that are all subject to bias [@Muller-Landau2014]. Dealing with nonstandard height of measurement can be done by multiplying the measured diameter by a 'taper-correction' factor; such a model has been calibrated with data from BCI [@Cushman2014; see "taper correction" in Figure \@ref(fig:fig2-correc)]. Dealing with outlier changes in diameter can be done by substutiting the outlier values by mean growth of stems with similar characteristics (e.g., similar diameter; see "outlier substitution" in Figure \@ref(fig:fig2-correc)). 
 
-Estimates of biomass stocks and fluxes at the plot level are very sensitive to the choice of biomass allometry (Figure \@ref(fig:fig1-allom)) and to the procedures used to deal with non-standard measurement heights and outliers for diameter changes (Figure \@ref(fig:fig2-correc)). In addition, there are specific problems with the early BCI plot censuses: in the first census, all trees were measured at breast height, even buttress trees with highly irregular trunks; therefore, we have removed the first census (1981-1982) from the figures in this chapter. In the first two censuses, the diameter of small stems (< 5.5 cm) was rounded to the nearest 5 mm, while the diameter of all other stems was reported to the nearest 1 mm; in the last censuses, all stem diameters were reported to 1 mm. Finally, for the first xx censuses, there were no individual stem tags on multi-stemmed trees, making it difficult to estimate their biomass dynamics. Together, these factors explain why no two papers give the same values for BCI biomass stocks and fluxes (Table xx?).
+Estimates of biomass stocks and fluxes at the plot level are very sensitive to the choice of biomass allometry (Figure \@ref(fig:fig1-allom)) and to the procedures used to deal with non-standard measurement heights and outliers for diameter changes (Figure \@ref(fig:fig2-correc)). In addition, there are specific problems with the early BCI plot censuses: in the first census, all trees were measured at breast height, even buttress trees with highly irregular trunks; therefore, we have removed the first census (1981-1982) from the figures in this chapter. In the first two censuses, the diameter of small stems (< 5.5 cm) was rounded to the nearest 5 mm, while the diameter of all other stems was reported to the nearest 1 mm; in the last censuses, all stem diameters were reported to 1 mm. Finally, prior to 2010, there were no individual stem tags on multi-stemmed trees, making it difficult to estimate their biomass dynamics. Together, these factors explain why no two papers give the same values for BCI biomass stocks and fluxes (Table xx?).
 
 
 ```{r fig2-correc, fig.height = 8, fig.width = 12, fig.cap="Some examples of corrections on inidividual tree AGB and AGB changes, and their effect on total plot AGB and AWP. "}
@@ -290,32 +290,18 @@ ggpubr::ggarrange(fig3a_bis_groups_size, fig3b_bis_groups_pft, ncol = 2, labels 
 
 * Temporal variation in BCI woody tree AGB stocks and fluxes 
 
-    + Key question / reason for evaluating forest carbon stocks and fluxes is to see if they are increasing or decreasing over time, evaluate relationship with climate
-
-    + BCI 50 ha plot data, because it spans long time period, provides excellent opportunities to evaluate this.  
-
-    + Estimates of BCI stocks and fluxes have varied over time depending on allometric equations used, data QAQC procedure, and even estimates of temporal trends have varied (Table 1, Figure 1)
-
-    + Overall, no evidence for systematic directional shifts, but clearly strong temporal variation
+The fate of carbon storage in tropical forest biomass under climate change is still uncertain. Factors such as increased availability of atmospheric carbon dioxide may increase tree productivity, but there is also growing evidence that rising temperature and frequency of extreme droughts are causing increased tree mortality [ref].Permanent tropical forest plots such as the BCI, which provide a great temporal depth of data on forest biomass stocks and fluxes (productivity, mortality), are therefore essential to assess whether these stocks and fluxes are increasing or decreasing over time, and to evaluate their relationship to climate. Estimates and temporal trends of BCI biomass stocks and fluxes varied over time depending on the allometric equations used and the data correction procedure (Table 1, Figure \@ref(fig:fig1-allom), Figure \@ref(fig:fig2-correc)). Overall, there is no evidence of a systematic directional change in BCI biomass stocks and fluxes, although biomass stocks and fluxes show strong temporal variation. (Figure \@ref(fig:fig1-allom)).
 
 
 * Contributions to tree AGB stocks and fluxes by subgroups
 
-    + By size class – Meakem et al. (and Piponiot et al.) 
+Trees have different ecological roles depending on their characteristics: size, canopy stature, growth rates, etc. In particular, trees' characteristics can influence their relative contribution to biomass stocks and fluxes. It has been shown for example that small sized trees contribute relatively more to productivity than to total biomass [Figure \@ref(fig:fig3-groups); @Piponiot2021;@Meakem2018]. xx some elements on functional groups depending on the one we chose for figure 3.
 
-    + By tree functional groups?
 
-        - Emergent, canopy, midstory, understory, shrub
-
-        - The classes defined by Ruger et al.?  but I’m not convinced these are the best definitions…  
-
-    + By tree taxonomic groups – most important families?  
-
-    + Ref. Fig 2.  
 
 *	Spatial variation in BCI AGB stocks and fluxes – within BCI 50 ha plot 
 
-    + Variation within the 50 ha plot among topographically defined habitats
+    + Variation within the 50 ha plot among topographically defined habitats > Chave ? 
 
     + Effect of lianas – ref chapters on liana removal experiments, on ecology of lianas, and publications including on spatial variation within BCI plot 
 
