@@ -32,7 +32,9 @@ req_packages <-
     "utils",
     "truncnorm",
     "ggpubr",
-    "readxl")
+    "readxl", 
+    "raster", 
+    "sf")
 
 # packages that are not yet installed on the computer
 ins_packages <-  req_packages[!(req_packages %in% rownames(installed.packages()))]
@@ -324,7 +326,7 @@ The 50 ha plot is not representative of the island of Barro Colorado, let alone 
 
     + Liana removal 
 
-```{r, fig4-spatial, fig.height = 10, fig.width = 10, fig.cap=""}
+```{r, fig4-spatial, fig.height = 10, fig.width = 10, fig.cap="Crown-distributed AGB (Mg/ha; panel a) and AWP (Mg/ha/yr; panel b) on the 50 ha plot. The area outlined in red is the secondary forest section. The AGB and AWP of individual trees were distributed among 5x5m pixels in proportion to the area of intersection between the pixel and the tree crown (crown radius calculated according to Martinez Cano et al., 2019)."}
 load("data/data-main-script.rda")
 df_crown$agb[df_crown$agb>1000] <- 1000
 df_crown$awp[df_crown$awp>30] <- 30
@@ -338,9 +340,9 @@ load("data/bci_habitat.rda")
 # df_crown[, q20 := as.numeric(paste0(q1, q2))]
 # df_crown[, `:=`(q1 = NULL, q2 = NULL)]
 # df_crown <- merge(df_crown, bci_habitat[, c("q20", "habitat")], by = "q20")
-ggplot(bci_habitat, aes(x = x, y = y, fill = habitat)) + 
-  geom_raster() +
-  coord_equal()
+# ggplot(bci_habitat, aes(x = x, y = y, fill = habitat)) + 
+  # geom_raster() +
+  # coord_equal()
 
 ## Convert bci_habitat to a raster object
 bci_habitat$secondary = bci_habitat$habitat=="young"
@@ -349,8 +351,8 @@ bci_habitat$x = bci_habitat$x+10; bci_habitat$y = bci_habitat$y + 10
 r <- raster::rasterFromXYZ(bci_habitat[, c("x", "y", "secondary")])
 
 ## Extract polygons and make it a simple feature 
-sec_poly <- raster::rasterToPolygons(r, dissolve = TRUE) %>%
-  sf::st_as_sf(sec_poly) 
+sec_poly <- raster::rasterToPolygons(r, dissolve = TRUE) 
+sec_poly <- sf::st_as_sf(sec_poly) 
 
 gagb <- ggplot(df_crown) + 
   geom_raster(aes(x = x, y = y, fill = agb)) +
