@@ -257,8 +257,40 @@ df_pft <- df_pft[, .(
 # individual tree table 
 df_ind <- subset(df_stem, stemID==2031)
 
+
+## calculate crown distributed agb and awp ####
+## crown allometry from Martinez Cano et al 2019
+df_stem[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ]
+
+dftemp <- df_stem[year==2010, c("stemID", "rcrown", "gx", "gy", "agb_t", "Dagb_ts")]
+
+## get crown distributed aboveground biomass density
+# create pixel grid
+hpix <- 5 # size of pixel, in m
+grid <- expand.grid(x = seq(0, 1000-hpix, by = hpix) + (hpix/2), 
+                    y = seq(0, 500-hpix, by = hpix) + (hpix/2))
+data.table::setDT(grid)
+# give each pixel a unique identifier
+grid$pixID <- 1:nrow(grid)
+
+# for each pixel, select trees that could be in it (distance between the center
+# of the pixel and the tree is less than the radius of the crown + the distance
+# between the center of the pixel and its corners = sqrt(2)/2*hpix)
+# could probably be more efficient
+dfpix <- grid[, .(stemID = subset(dftemp, sqrt((x - gx) ^ 2 + (y - gy) ^ 2) < rcrown + sqrt(2) /
+                                2 * hpix)$stemID), .(pixID, x, y)]
+
+dfpix <- merge(dfpix, dftemp, by = "stemID")
+
+dfpix[, parea := area_circle_rect(x - hpix / 2, x + hpix / 2, y - hpix / 2, y +
+                                  hpix / 2, gx, gy, rcrown)/(rcrown^2*pi), .(stemID, pixID)]
+
+df_crown <- dfpix[, .(agb = sum(parea*agb_t)/(hpix/100)^2, 
+                 awp = sum(parea*Dagb_ts, na.rm = TRUE)/(hpix/100)^2), .(pixID, x, y)]
+
+
 # save results
-save(df_plot, df_size, df_pft, df_ind, file = "data/data-main-script.rda")
+save(df_plot, df_size, df_pft, df_ind, df_crown, file = "data/data-main-script.rda")
 
 # 
 # # figure 4 ####
