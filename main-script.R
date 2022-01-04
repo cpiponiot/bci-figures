@@ -259,16 +259,30 @@ df_ind <- subset(df_stem, stemID==2031)
 
 
 ## calculate crown distributed agb and awp ####
-## crown allometry from Martinez Cano et al 2019
-df_stem[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ]
+# arguments
+hpix <- 5 # size of pixel, in m
+yr <- 2010
 
-dftemp <- df_stem[year==2010, c("stemID", "rcrown", "gx", "gy", "agb_t", "Dagb_ts")]
+## crown allometry from Martinez Cano et al 2019
+dftemp <- df_stem[year==yr, c("stemID", "dbh_t", "gx", "gy", "agb_t", "Dagb_ts")]
+dftemp[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ]
+dftemp[, dbh_t := NULL]
+# left side: 
+xmin <- floor(dftemp[gx - rcrown < 0, min(gx - rcrown)]/hpix)*hpix
+# right side: 
+xmax <- 1000 - floor(dftemp[1000-gx - rcrown < 0, min(1000 - gx - rcrown)]/hpix)*hpix
+# bottom: 
+ymin <- floor(dftemp[gy - rcrown < 0, min(gy - rcrown)]/hpix)*hpix
+# top: 
+ymax <- 500 - floor(dftemp[500-gy - rcrown < 0, min(500 - gy - rcrown)]/hpix)*hpix
 
 ## get crown distributed aboveground biomass density
 # create pixel grid
-hpix <- 5 # size of pixel, in m
-grid <- expand.grid(x = seq(0, 1000-hpix, by = hpix) + (hpix/2), 
-                    y = seq(0, 500-hpix, by = hpix) + (hpix/2))
+
+## need to mirror crowns that are partly outside the plot > extend the grid by 
+## the largest crown in each side
+grid <- expand.grid(x = seq(xmin, xmax - hpix, by = hpix) + (hpix/2), 
+                    y = seq(ymin, ymax-hpix, by = hpix) + (hpix/2))
 data.table::setDT(grid)
 # give each pixel a unique identifier
 grid$pixID <- 1:nrow(grid)
@@ -285,9 +299,11 @@ dfpix <- merge(dfpix, dftemp, by = "stemID")
 dfpix[, parea := area_circle_rect(x - hpix / 2, x + hpix / 2, y - hpix / 2, y +
                                   hpix / 2, gx, gy, rcrown)/(rcrown^2*pi), .(stemID, pixID)]
 
+## mirror pixels outside the plot back inside the plot
+dfpix[, `:=`(x = abs(1000-abs(1000-x)), y = abs(500-abs(500-y)))]
+
 df_crown <- dfpix[, .(agb = sum(parea*agb_t)/(hpix/100)^2, 
                  awp = sum(parea*Dagb_ts, na.rm = TRUE)/(hpix/100)^2), .(pixID, x, y)]
-
 
 # save results
 save(df_plot, df_size, df_pft, df_ind, df_crown, file = "data/data-main-script.rda")

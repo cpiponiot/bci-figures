@@ -23,7 +23,7 @@ csl: common/new-phytologist.csl
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, results='hide')
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, results = "hide")
 # list of package dependencies
 req_packages <-
   c("rdryad",
@@ -58,13 +58,13 @@ if (!file.exists("data/data-main-script.rda"))
 
 # Introduction
 
-Biomass is the mass of all living things in an ecosystem; this amount is usually measured on oven-dried material, thus excluding water. The biomass of a forest is dominated by the aerial parts of the trees, mainly the trunks and branches [ref]. It was rarely considered in ecology until about 30 years ago, but has recently received much attention due to increased interest in the global carbon cycle and the crucial role of forests in this cycle [ref]. This has led to an increase in the number of papers calculating forest biomass stocks and biomass fluxes associated with tree growth and mortality.
+Biomass is the mass of all living things in an ecosystem, and is usually measured on oven-dried material, thus excluding water. The biomass of a forest is dominated by the aerial parts of the trees, mainly the trunks and branches [ref]. It was rarely considered in ecology until about 30 years ago, but has recently received much attention due to increased interest in the global carbon cycle and the crucial role of forests in this cycle [ref]. This has led to an increase in the number of papers calculating forest biomass stocks and biomass fluxes associated with tree growth and mortality [ref].
 
 The traditional method of estimating tree biomass is to measure the basic characteristics (such as diameter) of all trees in a given area, and derive an estimate of biomass. On Barro Colorado Island, a 50-ha plot was established in 1980 to regularly measure all stems from 1 cm in diameter upward, allowing for an extensive estimate of woody biomass in the plot and its changes over time. In this chapter, we will explore the results of 35 years of measurements on the plot, focusing on aboveground biomass stocks and fluxes: how to estimate them, their temporal and spatial variation on the plot, and their distribution into size and functional groups. We will then briefly present other biomass stocks and fluxes, including below-ground biomass of trees, other plants (lianas, others?)
 
 # Plot-based tree aboveground biomass methods
 
-> something about plot layout, what trees are measured (eg dbh threshold?)
+> add something about plot layout, what trees are measured (eg dbh threshold?)
 
 * How to measure/calculate aboveground biomass stocks 
 
@@ -212,10 +212,10 @@ dfcorr <- subset(df_plot, !grepl("chave05|_h", method) & year >= 1985 & year < 2
 # change order of method and variable levels
 dfcorr$method <- factor(dfcorr$method, levels = unique(dfcorr$method))
 levels(dfcorr$method) <- list("Original data" = "chave14", 
-                               "Taper correction" = "chave14+taper", 
-                               "Taper correction + Outlier substitution" = "chave14+taper+subs", 
-                               "Original data+ Kohyama correction" = "chave14+kohyama",
-                               "Taper correction+ Kohyama correction" = "chave14+taper+kohyama",
+                              "Taper correction" = "chave14+taper", 
+                              "Taper correction + Outlier substitution" = "chave14+taper+subs", 
+                              "Original data+ Kohyama correction" = "chave14+kohyama",
+                              "Taper correction+ Kohyama correction" = "chave14+taper+kohyama",
                               "Taper correction+ Outlier substitution\n+ Kohyama correction" = "chave14+taper+subs+kohyama")
 
 
@@ -246,8 +246,8 @@ fig2cd_corr_plot <-
 fig2_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig2cd_corr_plot))
 
 plts <- ggpubr::ggarrange(fig2ab_corr_tree, 
-                  fig2cd_corr_plot + theme(legend.position = "none"), 
-                  nrow = 2)
+                          fig2cd_corr_plot + theme(legend.position = "none"), 
+                          nrow = 2)
 ggpubr::ggarrange(plts, fig2_leg, nrow = 1, widths = c(4, 1))
 ```
 
@@ -292,7 +292,7 @@ ggpubr::ggarrange(fig3a_bis_groups_size, fig3b_bis_groups_pft, ncol = 2, labels 
 
 * Temporal variation in BCI woody tree AGB stocks and fluxes 
 
-The fate of carbon storage in tropical forest biomass under climate change is still uncertain. Factors such as increased availability of atmospheric carbon dioxide may increase tree productivity, but there is also growing evidence that tree mortality is increasing, likely because of rising temperature and frequency of extreme droughts [@Hubau2020]. Permanent tropical forest plots such as the BCI, which provide a great temporal depth of data on forest biomass stocks and fluxes (productivity, mortality), are therefore essential to assess whether these stocks and fluxes are increasing or decreasing over time, and to evaluate their relationship to climate. Estimates and temporal trends of BCI biomass stocks and fluxes varied over time depending on the allometric equations used and the data correction procedure (Table 1, Figure \@ref(fig:fig1-allom), Figure \@ref(fig:fig2-correc)). Overall, there is no evidence of a systematic directional change in BCI biomass stocks and fluxes, although biomass stocks and fluxes show strong temporal variation [Figure \@ref(fig:fig1-allom); @Feeley2007;@Rutishauser2020].
+The fate of carbon storage in tropical forest biomass under climate change is still uncertain. Factors such as increased availability of atmospheric carbon dioxide may increase tree productivity, but there is also growing evidence that tree mortality is increasing, likely because of rising temperature and frequency of extreme droughts [@Hubau2020]. Permanent tropical forest plots such as BCI, which provide a great temporal depth of data on forest biomass stocks and fluxes (productivity, mortality), are therefore essential to assess whether these stocks and fluxes are increasing or decreasing over time, and to evaluate their relationship to climate. Estimates and temporal trends of BCI biomass stocks and fluxes varied over time depending on the allometric equations used and the data correction procedure (Table 1, Figure \@ref(fig:fig1-allom), Figure \@ref(fig:fig2-correc)). Overall, there is no evidence of a systematic directional change in BCI biomass stocks and fluxes, although biomass stocks and fluxes show strong temporal variation [Figure \@ref(fig:fig1-allom); @Feeley2007;@Rutishauser2020].
 
 * Contributions to tree AGB stocks and fluxes by subgroups
 
@@ -300,31 +300,25 @@ Tree characteristics (size, canopy stature, growth rate, etc.) provide insight i
 
 *	Spatial variation in BCI AGB stocks and fluxes – within BCI 50 ha plot 
 
-Biomass stocks and fluxes exhibit high small-scale spatial variability in the 50 ha BCI plot [@Rejou-Mechain2014], primarily due to high turnover rates, creating small-scale canopy openings in the plot [ref]. This high spatial noise in the data, in addition to the relative homogeneity of the geologic substrate in the 50 ha plot [ref], makes it difficult to identify clear patterns in the spatial distribution of biomass (Figure \@ref(fig:fig4-spatial)). Topography explains little variation in aboveground biomass stocks across the plot [@Ledo2016], but some differences across geological substrates have been detected [@DeWalt2004]. Liana abundance has been shown to be negatively correlated with aboveground biomass [@Ledo2016; ref chapters on liana removal experiments, on ecology of lianas]. Finally, a small portion of the 50-ha plot is composed of secondary forest (outline in future Figure 4?) and has thus lower aboveground biomass. 
+Biomass stocks and fluxes exhibit high small-scale spatial variability in the 50 ha BCI plot [@Rejou-Mechain2014]. This high spatial noise in the data makes it difficult to identify clear patterns in the spatial distribution of biomass within the 50 ha plot (Figure \@ref(fig:fig4-spatial)). Topography explains little variation in aboveground biomass stocks across the plot [@Ledo2016], but some differences across geological substrates have been detected [@Chave2003;@DeWalt2004; Supplementary material?]. Liana abundance has been shown to be negatively correlated with aboveground biomass [@Ledo2016; ref chapters on liana removal experiments, on ecology of lianas]. Finally, a small portion of the 50-ha plot is composed of secondary forest (outline in future Figure 4) and has thus lower aboveground biomass. 
 
 *	Spatial variation in BCNM AGB stocks and fluxes from multiple plots, and experimental results 
 
-The 50 ha plot is not representative of the island of Barro Colorado, let alone the entire Barro Colorado National Monument: it is located in a particularly flat part of the island, with a relatively homogeneous geological substrate and fairly old forest. This contrasts with the rest of the island, which has a greater diversity of soil, topography, and forest age [@Mascaro2011]. The 50 ha plot has a larger mean biomass then the rest of the Barro Colorado National Monument (ref figure with 1-ha plots + large BCI plots). 
+The 50 ha plot is not representative of the island of Barro Colorado, let alone the entire Barro Colorado National Monument: it is located in a particularly flat part of the island, with a relatively homogeneous geological substrate and fairly old forest [@Baillie2006;@Mascaro2011]. This contrasts with the rest of the island, which has a greater diversity of soil, topography, and forest age [@Baillie2006;@Mascaro2011]. To understand how biomass stocks and fluxes vary across Barro Colorado National Monument, smaller forest plots were set up: xx large plots spread across the island where only the largest trees (>20 cm DBH) were measured, and xxx 1 ha plots where all trees larger than 10 cm DBH were measured. (map in supplementary material? + figure or table showing AGB stocks and fluxes variation?)
 
-    + Variation among other plots in the BCNM, as estimated from 1-ha plots and the larger plots based on trees> 20 cm only 
+    + The 50 ha plot has a larger mean biomass then the rest of the Barro Colorado National Monument (ref figure with 1-ha plots + large BCI plots). 
 
-    + Possible TABLE or figure – AGB stocks and fluxes for different plots in BCNM  besides the 50 ha plot, 
-
-        - Large plots on BCI censused only for trees > 20 cm dbh (draw on work by Tori Meakem)
-        
-        - 1-ha plots, previous analyses by Camille
-        
     + Plot data also used to calibrate remote sensing and these then used to estimate broader spatial patterns – ref other chapter on this.
 
-*	Experimental results from BCNM work on AGB stocks and fluxes 
-
-    + [one sentence on each, and refs to associated chapters)
+*	Experimental results from BCNM work on AGB stocks and fluxes (one sentence on each, and refs to associated chapters)
 
     + Soil fertility – Gigante fertilization experiments 
 
     + Litter addition/removal
 
     + Liana removal 
+
+> Other woody biomass pools and fluxes ?
 
 ```{r, fig4-spatial, fig.height = 10, fig.width = 10, fig.cap="Crown-distributed AGB (Mg/ha; panel a) and AWP (Mg/ha/yr; panel b) on the 50 ha plot. The area outlined in red is the secondary forest section. The AGB and AWP of individual trees were distributed among 5x5m pixels in proportion to the area of intersection between the pixel and the tree crown (crown radius calculated according to Martinez Cano et al., 2019)."}
 load("data/data-main-script.rda")
@@ -335,31 +329,25 @@ df_crown$awp[df_crown$awp>30] <- 30
 load("data/bci_habitat.rda")
 # young <- subset(bci_habitat, habitat=="young")
 # create 20m quadrat correspondence for the df_crown data
-# df_crown[, `:=` (q1 = as.character(floor(x/20)), q2 = as.character(floor(y/20)))]
-# df_crown[nchar(q2) == 1, q2 := paste0("0", q2)]
-# df_crown[, q20 := as.numeric(paste0(q1, q2))]
-# df_crown[, `:=`(q1 = NULL, q2 = NULL)]
-# df_crown <- merge(df_crown, bci_habitat[, c("q20", "habitat")], by = "q20")
-# ggplot(bci_habitat, aes(x = x, y = y, fill = habitat)) + 
-  # geom_raster() +
-  # coord_equal()
 
 ## Convert bci_habitat to a raster object
+bci_habitat[, habitat_f := as.numeric(as.factor(habitat))]
 bci_habitat$secondary = bci_habitat$habitat=="young"
 ## translate x and y to have center of quadrats
 bci_habitat$x = bci_habitat$x+10; bci_habitat$y = bci_habitat$y + 10
-r <- raster::rasterFromXYZ(bci_habitat[, c("x", "y", "secondary")])
+r <- raster::rasterFromXYZ(bci_habitat[, c("x", "y", "habitat_f")])
 
 ## Extract polygons and make it a simple feature 
 sec_poly <- raster::rasterToPolygons(r, dissolve = TRUE) 
 sec_poly <- sf::st_as_sf(sec_poly) 
+sec_poly <- merge(sec_poly, unique(bci_habitat[, c("habitat", "habitat_f")]))
 
 gagb <- ggplot(df_crown) + 
   geom_raster(aes(x = x, y = y, fill = agb)) +
-  geom_sf(data = sec_poly, size = 1.5, fill = NA, col = 2) +
+  geom_sf(data = subset(sec_poly, habitat == "young"), col=2, size = 1.2, fill = NA) +
   scale_fill_gradient(low = "black", high = "white", 
                       breaks = c(0, 250, 500, 750, 1000),
-                     labels = c(0, 250, 500, 750, ">1000")) +
+                      labels = c(0, 250, 500, 750, ">1000")) +
   labs(fill = "AGB\n(Mg/ha)", x = "", y = "") +
   expand_limits(x = c(0, 1000), y = c(0, 500)) +
   scale_x_continuous(expand = c(0, 0)) +
@@ -368,10 +356,10 @@ gagb <- ggplot(df_crown) +
 
 gawp <- ggplot(df_crown) + 
   geom_raster(aes(x = x, y = y, fill = awp)) +
-  geom_sf(data = sec_poly, size = 1.5, fill = NA, col = 2) +
+  geom_sf(data = subset(sec_poly, habitat == "young"), size = 1.2, fill = NA, col = 2) +
   scale_fill_gradient(low = "black", high = "white",
                       breaks = c(0, 10, 20, 30),
-                     labels = c(0, 10, 20, ">30")) +
+                      labels = c(0, 10, 20, ">30")) +
   labs(fill = "AWP\n(Mg/ha/yr)", x = "", y = "") +
   expand_limits(x = c(0, 1000), y = c(0, 500)) +
   scale_x_continuous(expand = c(0, 0)) +
@@ -380,3 +368,54 @@ gawp <- ggplot(df_crown) +
 
 ggpubr::ggarrange(gagb, gawp, labels = "auto", nrow = 2)
 ```
+
+# Supplementary material
+
+```{r map-habitat, height = 5, width = 10, fig.cap= "Topologically defined habitat map of the 50-ha plot. Source: Dalling et al., 2012"}
+ggplot(bci_habitat, aes(x = x, y = y, fill = habitat)) +
+  geom_raster() +
+  coord_equal()+
+  labs(fill = "Habitat", x = "", y = "") +
+  expand_limits(x = c(0, 1000), y = c(0, 500)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_bw()
+```
+
+```{r tab-habitat}
+df_crown[, `:=` (q1 = as.character(floor(x/20)), q2 = as.character(floor(y/20)))]
+df_crown[nchar(q2) == 1, q2 := paste0("0", q2)]
+df_crown[, q20 := as.numeric(paste0(q1, q2))]
+df_crown[, `:=`(q1 = NULL, q2 = NULL)]
+df_crown <- merge(df_crown, bci_habitat[, c("q20", "habitat")], by = "q20")
+dfhab <- df_crown[, .(agb = paste(round(mean(agb)), "+/-",
+                                  round(sd(agb)/sqrt(length(agb)))), 
+                      awp = paste(round(mean(awp), 2), "+/-",
+                                  round(sd(awp)/sqrt(length(awp)), 2))), .(habitat)]
+
+knitr::kable(dfhab, col.names = c("Habitat", "AGB (Mh/ha)", "AWP (Mg/ha/yr)"), caption = "Mean (+/- standard deviation) of aboveground biomass and aboveground woody productivity by topographically defined habitat (as defined in Dalling et al., 2012). The AGB and AWP of individual trees were distributed among 5x5m pixels based on the area of intersection between the pixel and their crown (using crown allometry of Martinez Cano et al., 2019).")
+```
+
+```{r fig-habitat, fig.height=4, fig.width=7, fig.cap="Aboveground biomass and aboveground woody productivity by topographically defined habitat (as defined in Dalling et al., 2012). Dots represnet the mean, and error bars the standard errors across 20x20m quadrats. The AGB and AWP of individual trees were distributed among 5x5m pixels based on the area of intersection between the pixel and their crown (using crown allometry of Martinez Cano et al., 2019). Results are consistent with a similar analysis by Chave and colleagues (2003)."}
+dfhab2 <- data.table::melt(df_crown, measure.vars = c("agb", "awp"), id.vars = c("habitat", "q20"))
+# group by quadrat
+dfhab2 <- dfhab2[, .(value = mean(value)), .(variable, q20, habitat)]
+
+dfhab2 <- dfhab2[, .(mean = mean(value), se = sd(value)/sqrt(length(value))), .(habitat, variable)]
+levels(dfhab2$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)")
+
+ggplot(dfhab2, aes(x=habitat, y = mean, ymin = mean-se, ymax = mean+se, col = habitat)) +
+  geom_pointrange() +
+  labs(x = "", y = "") +
+  facet_wrap(~variable, scales = "free", strip.position = "left") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), 
+        strip.placement = "outside", 
+        strip.background = element_blank(), 
+        legend.position = "none")
+```
+
+
+
+
+# References
