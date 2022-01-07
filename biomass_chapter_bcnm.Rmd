@@ -74,7 +74,7 @@ The aboveground biomass can be measured directly by harvesting, drying, and weig
 
 Estimating the biomass of an individual tree from allometric equations is not a trivial task, as it requires many choices and approximations. Early allometric equations were calibrated with only a few trees, usually at few sites, and used only diameter as a predictor variable [e.g., as used in @Chave2003]. Later developed equations include a larger number of sites spread across the tropics, incorporate tree height, or environmental factors that are proxies for height, and wood density [@Chave2005;@Chave2014]. Tree height is more difficult to measure than diameter, especially in dense vegetation: for sites where heights of all trees are not available (such as BCI), then a height allometry equation can be chosen [e.g., @MartinezCano2019 which was calibrated to BCI]. Wood density is most often assigned by species from large taxonomic databases [e.g., @Zanne2009], but there is considerable variation within species, both among and within sites [@Muller-Landau2004]. Finally, the conversion of biomass to carbon is also subject to error, as the fraction of carbon in biomass is variable and poorly quantified [@Thomas2012]. The set of choices when estimating tree biomass can therefore have a significant impact on the estimate of plot biomass stocks (Figure \@ref(fig:fig1-allom)a). 
 
-```{r fig1-allom, fig.height = 4, fig.width = 10,fig.cap="AGB estimates using different allometries (shown by different colors). (a) AGB estimated per individual tree as a function of DBH for trees with different wood densities (plain lines: wood density = 0.4; dotted lines: wood density = 0.8); (b) plot-level AGB for all censuses 1985-2015. The allometries used were: Chave et al.'s (2005) allometry for wet forest stands, without tree height (red lines) or using the generic height allometry of Martinez Caño et al. (2019) developed at BCI (blue lines); or Chave et al.'s (2014) allometry, without tree height (equation 7 - green lines) or with tree height (equation 4 - purple lines) using the generic height allometry of Martinez Caño et al. (2019)."}
+```{r fig1-allom, fig.height = 4, fig.width = 10,fig.cap="AGB estimates using different allometries (shown by different colors). (a) aboveground biomass (AGB) estimated per individual tree as a function of DBH for trees with different wood densities (plain lines: wood density = 0.4; dotted lines: wood density = 0.8); (b) plot-level AGB for all censuses 1985-2015. The allometries used were: the allometry from @Chave2005 for moist forest stands, without tree height (red lines) or using the generic height allometry of @MartinezCano2019 developed at BCI (blue lines); or the allometry from @Chave2014, without tree height (equation 7 - green lines) or with tree height (equation 4 - purple lines) using the generic height allometry of @MartinezCano2019."}
 #### Figure 1 - AGB estimation and potential sources of uncertainty ####
 
 # create data table for illustrating different allometric equations at the
@@ -148,18 +148,20 @@ ggpubr::ggarrange(fig1a_allom_ind + theme(legend.position = "none"),
 
 * Calculating biomass fluxes from allometric equations 
 
-In addition to biomass stocks, ecologists are also interested in biomass dynamics: changes in biomass over time, which is the net difference between biomass increase due to tree productivity and biomass loss due to tree mortality. Annual mortality is calculated as the biomass of all dead trees between two censuses, divided by the time period between the two censuses. Annual productivity is the annualized sum of the increase in biomass of living trees between two censuses, and the biomass of recruited trees, i.e., trees that were measured for the first time in the last census. These measures are underestimated for two reasons: (i) they do not account for branchfalls, which are an important part of biomass turnover in tropical forests and account for about a fourth of the area of canopy gaps in BCI [@Araujo2021], and (ii) some stems are recruited and die between two censuses, and are therefore never measured. A correction for the latter source of bias has been proposed by @Kohyama2019 and does not require additional measurements (applied in Figure \@ref(fig:fig2-correc)d).
+In addition to biomass stocks, ecologists are also interested in biomass dynamics: changes in biomass over time, which is the net difference between biomass increase due to tree productivity and biomass loss due to tree mortality. Annual mortality is calculated as the biomass of all dead trees between two censuses, divided by the time period between the two censuses. Annual woody productivity is the annualized sum of the increase in biomass of living trees between two censuses, and the biomass of recruited trees, i.e., trees that were measured for the first time in the last census. These measures are underestimated for two reasons: (i) they do not account for branchfalls, which are an important part of biomass turnover in tropical forests and account for about a fourth of the area of canopy gaps in BCI [@Araujo2021], and (ii) some stems are recruited and die between two censuses, and are therefore never measured. A correction for the latter source of bias has been proposed by @Kohyama2019 and does not require additional measurements (applied in Figure \@ref(fig:fig2-correc)d).
 
 * Complications of nonstandard height of measurement, data QAQC
 
 The standard height for measuring tree diameter is 1.3 m (referred to as diameter at breast height, or DBH), and the vast majority of biomass allometries are calibrated with diameter values at 1.3 m. However, tree diameter is sometimes measured at a different height, for example because of trunk irregularity at 1.3 m height in buttressed trees; due to tree taper, this can lead to underestimation of tree diameter and thus biomass. Change in height of measurement, among other factors such as errors in DBH measurement and reporting, irregular or thorny trunks, and the presence of lianas or strangling figs can lead to outlier values for change in diameter [@Sheil1995]. The cause of these outliers is sometimes difficult to trace, making correction difficult, with multiple possible correction procedures all subject to bias [@Muller-Landau2014]. Nonstandard measurement height can be handled by multiplying the measured diameter by a "taper correction" factor; such a model has been calibrated with BCI data [@Cushman2014; see "taper correction" in Figure \@ref(fig:fig2-correc)]. To deal with outlier variation in diameter, outlier values can be replaced with the average growth of stems with similar characteristics (e.g., similar diameter; see "outlier substitution" in Figure \@ref(fig:fig2-correc)). 
 
-Estimates of biomass stocks and fluxes at the plot level are very sensitive to the choice of biomass allometry (Figure \@ref(fig:fig1-allom)) and to the procedures used to deal with non-standard measurement heights and outliers for diameter changes (Figure \@ref(fig:fig2-correc)). In addition, there are specific problems with the early BCI plot censuses: in the first census, all trees were measured at breast height, even buttress trees with highly irregular trunks; therefore, we have removed the first census (1981-1982) from the figures in this chapter. In the first two censuses, the diameter of small stems (< 5.5 cm) was rounded to the nearest 5 mm, while the diameter of all other stems was reported to the nearest 1 mm; in the last censuses, all stem diameters were reported to 1 mm. Finally, prior to 2010, there were no individual stem tags on multi-stemmed trees, making it difficult to estimate their biomass dynamics. Together, these factors explain why no two papers give the same values for BCI biomass stocks and fluxes (Table xx?).
+Estimates of biomass stocks and fluxes at the plot level are very sensitive to the choice of biomass allometry (Figure \@ref(fig:fig1-allom)) and to the procedures used to deal with non-standard measurement heights and outliers for diameter changes (Figure \@ref(fig:fig2-correc)). In addition, there are specific problems with the early BCI plot censuses: in the first census, all trees were measured at breast height, even buttress trees with highly irregular trunks; therefore, we have removed the first census (1981-1982) from the figures in this chapter. In the first two censuses, the diameter of small stems (< 5.5 cm) was rounded to the nearest 5 mm, while the diameter of all other stems was reported to the nearest 1 mm; in the last censuses, all stem diameters were reported to 1 mm. Finally, prior to 2010, there were no individual stem tags on multi-stemmed trees, making it difficult to estimate their biomass dynamics. Together, these factors explain why no two papers give the same values for BCI biomass stocks and fluxes [e.g., @Chave2003;@Rutishauser2020 xxx].
 
 
-```{r fig2-correc, fig.height = 8, fig.width = 12, fig.cap="Some examples of corrections on inidividual tree AGB and AGB changes, and their effect on total plot AGB and AWP."}
+```{r fig2-correc, fig.height = 8, fig.width = 12, fig.cap="Some examples of corrections on individual tree aboveground biomass (AGB; Mg) and AGB changes (Mg/yr), and their effect on total plot AGB (Mg/ha) and aboveground woody productivity (AWP; Mg/ha/yr)."}
 # Figure 2 - Corrections ####
 # fig2a - illustration with one problematic tree
+df_ind <- subset(df_ind, stemID=="1428")
+
 df_ind$agb <- df_ind$chave14
 # could substitute dbh with agb
 vars <- paste0(rep(c("D", ""), each = 3), "agb", c("", "_t", "_ts"))
@@ -190,15 +192,12 @@ fig2ab_corr_tree <- ggplot(df_ind_melt, aes(x = year, y = value, color = method)
   geom_point(data = subset(df_ind_melt, method=="Taper correction")) +
   geom_point(data = subset(df_ind_melt, method=="Original data")) +
   geom_hline(yintercept = 0, lty = 3, variable = "AWP (Mg/yr)") +
-  geom_segment(x = 1990, xend = 2015, y = 10, yend = 10, color = 1, 
-               arrow = arrow(length = unit(0.3, "cm"), ends = "both")) +
-  geom_text(x = 2000, y = 15, label = "HOM = 9 m", color = 1) +
   geom_text(data = dflabs, aes(label = label), size = 6, hjust = 4, vjust = 1,
             x= -Inf, y = Inf, inherit.aes = FALSE) +
   coord_cartesian(clip = "off") +
   expand_limits(y = 0) +
   scale_y_continuous(expand = c(0, 0)) +
-  labs(y = "", x = "", title = "Individual tree level (tree #2031)") +
+  labs(y = "", x = "", title = paste0("Individual tree level (tree #", df_ind$treeID[1], " - ", df_ind$Latin[1], ")")) +
   scale_color_manual(values = c("black", "#1F78B4", "#E31A1C")) +
   theme_classic() +
   theme(strip.placement = "outside", 
@@ -208,7 +207,11 @@ fig2ab_corr_tree <- ggplot(df_ind_melt, aes(x = year, y = value, color = method)
   facet_wrap(~variable, scales = "free", strip.position = "left")
 
 # fig2b - corrections on plot AGB
-dfcorr <- subset(df_plot, !grepl("chave05|_h", method) & year >= 1985 & year < 2015 )
+dfcorr <- subset(df_plot, !grepl("chave05|_h", method) & !(variable=="awp" & year == 2015))
+
+# put awp points between the 2 years that it's based on
+dfcorr[variable == "awp", year := year + 2.5]
+
 # change order of method and variable levels
 dfcorr$method <- factor(dfcorr$method, levels = unique(dfcorr$method))
 levels(dfcorr$method) <- list("Original data" = "chave14", 
@@ -252,7 +255,7 @@ ggpubr::ggarrange(plts, fig2_leg, nrow = 1, widths = c(4, 1))
 ```
 
 
-```{r fig3-groups, fig.height = 4, fig.width = 8, fig.cap="Stacked barplots showing the proportion of AGB and AWP (%) in different groups. (a) Proportion of AGB (left) and AWP (right) by size class (from blue to red).  Proportion of AGB (left) and AWP (right) by plant functional type as defined in Ruger et al. (2020.)"}
+```{r fig3-groups, fig.height = 4, fig.width = 8, fig.cap="Stacked barplots showing the proportion (%) of aboveground biomass (AGB) and aboveground woody productivity (AWP) in different groups. (a) Proportion of AGB (left) and AWP (right) by size class (from blue to red).  Proportion of AGB (left) and AWP (right) by plant functional type as defined in @Ruger2020."}
 # Figure 3 - AGB per group ####
 
 # # estimate percentage of each size class or PFT group per variable
@@ -320,15 +323,20 @@ The 50 ha plot is not representative of the island of Barro Colorado, let alone 
 
 > Other woody biomass pools and fluxes ?
 
-```{r, fig4-spatial, fig.height = 10, fig.width = 10, fig.cap="Crown-distributed AGB (Mg/ha; panel a) and AWP (Mg/ha/yr; panel b) on the 50 ha plot. The area outlined in red is the secondary forest section. The AGB and AWP of individual trees were distributed among 5x5m pixels in proportion to the area of intersection between the pixel and the tree crown (crown radius calculated according to Martinez Cano et al., 2019)."}
+```{r, fig4-spatial, fig.height = 8, fig.width = 12, fig.cap="Crown-distributed AGB (Mg/ha) and AWP (Mg/ha/yr) on the 50 ha plot, grouped by topographically-defined habitat [as defined by @Harms2001]. (a) Map of crown-distributed AGB in the 2010 census. (b)  Map of crown-distributed AWP between the 2010 and 2015 censuses. Colors delineate the topographically defined habitats. (c) Mean (+/- standard error across 20 m quadrats) of AGB and AWP in each topographically defined habitat. The AGB and AWP of individual trees were distributed among 2x2m pixels in proportion to the area of intersection between the pixel and the tree crown [crown radius calculated according to @MartinezCano2019]. The AGB and AWP of the portions of tree crowns that lie outside the edges were mirror transposed into the pixels inside the plot to avoid underestimation of AGB and AWP at the edges of the plot (see Supplementary material). Results are consistent with a similar analysis by @Chave2003."}
+
 load("data/data-main-script.rda")
 df_crown$agb[df_crown$agb>1000] <- 1000
 df_crown$awp[df_crown$awp>30] <- 30
 
-## get bci habitats
+## get bci habitats from Harms et al 2001
 load("data/bci_habitat.rda")
-# young <- subset(bci_habitat, habitat=="young")
-# create 20m quadrat correspondence for the df_crown data
+# change name of habitat to match publication: first letter in upper case and add spaces
+levels(bci_habitat$habitat) <- paste0(toupper(substr(levels(bci_habitat$habitat), 1, 1)), 
+                              substr(levels(bci_habitat$habitat), 2, nchar(levels(bci_habitat$habitat))))
+levels(bci_habitat$habitat) <- gsub("Hi_", "High ", levels(bci_habitat$habitat))
+levels(bci_habitat$habitat) <- gsub("_", " ", levels(bci_habitat$habitat))
+levels(bci_habitat$habitat) <- gsub("Young", "Young forest", levels(bci_habitat$habitat))
 
 ## Convert bci_habitat to a raster object
 bci_habitat[, habitat_f := as.numeric(as.factor(habitat))]
@@ -338,13 +346,13 @@ bci_habitat$x = bci_habitat$x+10; bci_habitat$y = bci_habitat$y + 10
 r <- raster::rasterFromXYZ(bci_habitat[, c("x", "y", "habitat_f")])
 
 ## Extract polygons and make it a simple feature 
-sec_poly <- raster::rasterToPolygons(r, dissolve = TRUE) 
-sec_poly <- sf::st_as_sf(sec_poly) 
-sec_poly <- merge(sec_poly, unique(bci_habitat[, c("habitat", "habitat_f")]))
-
+habitats <- raster::rasterToPolygons(r, dissolve = TRUE) 
+habitats <- sf::st_as_sf(habitats) 
+habitats <- merge(habitats, unique(bci_habitat[, c("habitat", "habitat_f")]))
+habitats_buff <- sf::st_buffer( habitats, -2)
+           
 gagb <- ggplot(df_crown) + 
   geom_raster(aes(x = x, y = y, fill = agb)) +
-  geom_sf(data = subset(sec_poly, habitat == "young"), col=2, size = 1.2, fill = NA) +
   scale_fill_gradient(low = "black", high = "white", 
                       breaks = c(0, 250, 500, 750, 1000),
                       labels = c(0, 250, 500, 750, ">1000")) +
@@ -353,10 +361,18 @@ gagb <- ggplot(df_crown) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme_bw()
-
+# isolate legend
+legend1 <- ggpubr::as_ggplot(ggpubr::get_legend(gagb))
+# remove legend from gagb and add the habitat layer
+gagb <- gagb + 
+  geom_sf(data = habitats_buff, aes(color = habitat), size = 1.4, fill = NA) +
+  theme(legend.position = "none")
+  
+gcolor <- ggplot(habitats_buff, aes(color = habitat)) + geom_sf(fill = NA, size = 1.5)
+legend2 <- ggpubr::as_ggplot(ggpubr::get_legend(gcolor))
+  
 gawp <- ggplot(df_crown) + 
-  geom_raster(aes(x = x, y = y, fill = awp)) +
-  geom_sf(data = subset(sec_poly, habitat == "young"), size = 1.2, fill = NA, col = 2) +
+  geom_raster(aes(x = x, y = y, fill = awp))  +
   scale_fill_gradient(low = "black", high = "white",
                       breaks = c(0, 10, 20, 30),
                       labels = c(0, 10, 20, ">30")) +
@@ -365,55 +381,53 @@ gawp <- ggplot(df_crown) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
   theme_bw()
+# isolate gawp legend
+legend3 <- ggpubr::as_ggplot(ggpubr::get_legend(gawp))
+gawp <- gawp + theme(legend.position = "none")+
+  geom_sf(data = habitats_buff, aes(color = habitat), size = 1.4, fill = NA)
 
-ggpubr::ggarrange(gagb, gawp, labels = "auto", nrow = 2)
-```
-
-# Supplementary material
-
-```{r map-habitat, height = 5, width = 10, fig.cap= "Topologically defined habitat map of the 50-ha plot. Source: Dalling et al., 2012"}
-ggplot(bci_habitat, aes(x = x, y = y, fill = habitat)) +
-  geom_raster() +
-  coord_equal()+
-  labs(fill = "Habitat", x = "", y = "") +
-  expand_limits(x = c(0, 1000), y = c(0, 500)) +
-  scale_x_continuous(expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0)) +
-  theme_bw()
-```
-
-```{r tab-habitat}
+## stats by habitat
+# add habitat information to df_crown
+# 1. add quadrat based on x and y
 df_crown[, `:=` (q1 = as.character(floor(x/20)), q2 = as.character(floor(y/20)))]
 df_crown[nchar(q2) == 1, q2 := paste0("0", q2)]
 df_crown[, q20 := as.numeric(paste0(q1, q2))]
 df_crown[, `:=`(q1 = NULL, q2 = NULL)]
+# merge with bci_habitats
 df_crown <- merge(df_crown, bci_habitat[, c("q20", "habitat")], by = "q20")
-dfhab <- df_crown[, .(agb = paste(round(mean(agb)), "+/-",
-                                  round(sd(agb)/sqrt(length(agb)))), 
-                      awp = paste(round(mean(awp), 2), "+/-",
-                                  round(sd(awp)/sqrt(length(awp)), 2))), .(habitat)]
 
-knitr::kable(dfhab, col.names = c("Habitat", "AGB (Mh/ha)", "AWP (Mg/ha/yr)"), caption = "Mean (+/- standard deviation) of aboveground biomass and aboveground woody productivity by topographically defined habitat (as defined in Dalling et al., 2012). The AGB and AWP of individual trees were distributed among 5x5m pixels based on the area of intersection between the pixel and their crown (using crown allometry of Martinez Cano et al., 2019).")
-```
-
-```{r fig-habitat, fig.height=4, fig.width=7, fig.cap="Aboveground biomass and aboveground woody productivity by topographically defined habitat (as defined in Dalling et al., 2012). Dots represnet the mean, and error bars the standard errors across 20x20m quadrats. The AGB and AWP of individual trees were distributed among 5x5m pixels based on the area of intersection between the pixel and their crown (using crown allometry of Martinez Cano et al., 2019). Results are consistent with a similar analysis by Chave and colleagues (2003)."}
 dfhab2 <- data.table::melt(df_crown, measure.vars = c("agb", "awp"), id.vars = c("habitat", "q20"))
 # group by quadrat
 dfhab2 <- dfhab2[, .(value = mean(value)), .(variable, q20, habitat)]
 
 dfhab2 <- dfhab2[, .(mean = mean(value), se = sd(value)/sqrt(length(value))), .(habitat, variable)]
-levels(dfhab2$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)")
+# levels(dfhab2$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)")
 
-ggplot(dfhab2, aes(x=habitat, y = mean, ymin = mean-se, ymax = mean+se, col = habitat)) +
+gagb2 <- ggplot(subset(dfhab2, variable == "agb"), 
+                aes(x=habitat, y = mean, ymin = mean-se, ymax = mean+se, col = habitat)) +
   geom_pointrange() +
-  labs(x = "", y = "") +
-  facet_wrap(~variable, scales = "free", strip.position = "left") +
+  labs(x = "", y = "AGB (Mg/ha)") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), 
-        strip.placement = "outside", 
-        strip.background = element_blank(), 
         legend.position = "none")
+
+gawp2 <- ggplot(subset(dfhab2, variable == "awp"), 
+                aes(x=habitat, y = mean, ymin = mean-se, ymax = mean+se, col = habitat)) +
+  geom_pointrange() +
+  labs(x = "", y = "AWP (Mg/ha/yr)") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), 
+        legend.position = "none")
+
+# group graphs
+gmap <- ggpubr::ggarrange(gagb, gawp, nrow=2, labels = c("a","b"))
+gbar <- ggpubr::ggarrange(gagb2, gawp2, nrow=2, labels = c("c", "d"))
+legends <- ggpubr::ggarrange(legend1, legend2, legend3, nrow=3)
+
+ggpubr::ggarrange(gmap, legends, gbar, widths = c(4,1,2), ncol=3)
 ```
+
+# Supplementary material
 
 
 

@@ -65,21 +65,25 @@ str_figs[, .(nquadrat = length(unique(quadrat)), nfigs = length(unique(treeID)))
 
 df_stem <- subset(df_stem, ! treeID %in% str_figs$treeID)
 
+# add median species dbh to apply the palm allometry as in Rutishauser et al., 2020
+# all palms except Socratea
+df_stem[Family == "Arecaceae" & Genus != "Socratea", dbh := median(dbh, na.rm = TRUE), .(Latin)]
+
 ### estimate individual aboveground biomass using different methods ####
 
 # no correction
 
 # Chave et al 2014 allometric equation, no height information
-df_stem[, chave14 := agb_bci(dbh = dbh, wd = wsg, method = "chave14")]
+df_stem[, chave14 := agb_bci(dbh = dbh, wd = wsg, method = "chave14", palms = Genus %in% palms)]
 
 # Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2019
-df_stem[, chave14_h := agb_bci(dbh = dbh, wd = wsg, method = "chave14", use_height_allom = TRUE)]
+df_stem[, chave14_h := agb_bci(dbh = dbh, wd = wsg, method = "chave14", use_height_allom = TRUE, palms = Genus %in% palms)]
 
 # Chave et al 2005 allometric equation, no height information
-df_stem[, chave05 := agb_bci(dbh = dbh, wd = wsg, method = "chave05")]
+df_stem[, chave05 := agb_bci(dbh = dbh, wd = wsg, method = "chave05", palms = Genus %in% palms)]
 
 # Chave et al 2005 allometric equation, tree height from Martinez Cano et al., 2019
-df_stem[, chave05_h := agb_bci(dbh = dbh, wd = wsg, method = "chave05", use_height_allom = TRUE)]
+df_stem[, chave05_h := agb_bci(dbh = dbh, wd = wsg, method = "chave05", use_height_allom = TRUE, palms = Genus %in% palms)]
 
 # corr1: taper correction
 # from Cushman et al., 2021, using WSG 
@@ -87,7 +91,7 @@ df_stem[, chave05_h := agb_bci(dbh = dbh, wd = wsg, method = "chave05", use_heig
 # from Cushman et al., 2014
 df_stem[, b := exp(-2.0205 - 0.5053 * log(dbh) + 0.3748 * log(hom))]
 df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
-df_stem[, agb_t := agb_bci(dbh = dbh_t, wd = wsg)]
+df_stem[, agb_t := agb_bci(dbh = dbh_t, wd = wsg, palms = Genus %in% palms)]
 
 # corr2: interpolate missing DBHs
 df_stem[, dbh_ti := interpolate_missing(dbh_t, year, DFstatus), .(stemID)]
@@ -116,7 +120,7 @@ df_stem[, size := cut(dbh_t, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = T
 df_stem[!is.na(Ddbh), `:=`(
   Ddbh_ts = substitute_change(varD = Ddbh_t, cut = c(-0.5, 5)),
   Dagb_ts = substitute_change(D = dbh_t, varD = Ddbh_t, WD = wsg, 
-                             value = "AGB", cut = c(-0.5, 5))),
+                              value = "AGB", cut = c(-0.5, 5))),
   size]
 
 ## translate dbh values (or agb values) with substituted dbh or agb
@@ -233,7 +237,7 @@ df_size <- df_size[!is.na(size) , .(
 # 4. by functional group ####
 # xxx create function for this
 df_pft <- df_stem_melt[, .(value = sum(value) / 50), 
-                        .(variable, method, year = census_year, PFT)]
+                       .(variable, method, year = census_year, PFT)]
 
 # only use corrected measurements (?)
 df_pft <- df_pft[method == "chave14+taper+subs"]
@@ -255,12 +259,26 @@ df_pft <- df_pft[, .(
 ), .(PFT)]
 
 # individual tree table 
-df_ind <- subset(df_stem, stemID==2031)
+# dfchoice = df_stem[, .(s1 = sum(dbh_t!=dbh), 
+#                        s2 = sum(dbh_t!=dbh_ts), 
+#                        s3 = sum(dbh_t==dbh & dbh_ts != dbh_t), 
+#                        n = length(dbh)), .(stemID)]
+# dfchoice = subset(dfchoice, s1>0 & s2 > 0 & s3 > 0 & n >=5)
+# 
+# for (i in 1:ceiling(nrow(dfchoice)/12)) {
+#   ggplot(subset(df_stem, stemID %in% dfchoice$stemID[((i-1)*12+1):(12*i)]), aes(x=year)) +
+#     geom_point(aes(y=dbh_ts), col=3) +
+#     geom_point(aes(y=dbh_t), col=2) +
+#     geom_point(aes(y=dbh), col=1) +
+#     facet_wrap(~paste(stemID, Latin, sep = " - "), scales = "free")
+#   ggsave(paste0("temp/fig",i,".png"))
+# }
 
+df_ind <- subset(df_stem, stemID %in% c(2031, 3671, 1428))
 
 ## calculate crown distributed agb and awp ####
 # arguments
-hpix <- 5 # size of pixel, in m
+hpix <- 2 # size of pixel, in m
 yr <- 2010
 
 ## crown allometry from Martinez Cano et al 2019
@@ -292,18 +310,18 @@ grid$pixID <- 1:nrow(grid)
 # between the center of the pixel and its corners = sqrt(2)/2*hpix)
 # could probably be more efficient
 dfpix <- grid[, .(stemID = subset(dftemp, sqrt((x - gx) ^ 2 + (y - gy) ^ 2) < rcrown + sqrt(2) /
-                                2 * hpix)$stemID), .(pixID, x, y)]
+                                    2 * hpix)$stemID), .(pixID, x, y)]
 
 dfpix <- merge(dfpix, dftemp, by = "stemID")
 
 dfpix[, parea := area_circle_rect(x - hpix / 2, x + hpix / 2, y - hpix / 2, y +
-                                  hpix / 2, gx, gy, rcrown)/(rcrown^2*pi), .(stemID, pixID)]
+                                    hpix / 2, gx, gy, rcrown)/(rcrown^2*pi), .(stemID, pixID)]
 
 ## mirror pixels outside the plot back inside the plot
 dfpix[, `:=`(x = abs(1000-abs(1000-x)), y = abs(500-abs(500-y)))]
 
 df_crown <- dfpix[, .(agb = sum(parea*agb_t)/(hpix/100)^2, 
-                 awp = sum(parea*Dagb_ts, na.rm = TRUE)/(hpix/100)^2), .(pixID, x, y)]
+                      awp = sum(parea*Dagb_ts, na.rm = TRUE)/(hpix/100)^2), .(pixID, x, y)]
 
 # save results
 save(df_plot, df_size, df_pft, df_ind, df_crown, file = "data/data-main-script.rda")

@@ -8,6 +8,7 @@
 # equation from Martinez Cano et al 2019 is used when use_height_allom = TRUE
 agb_bci <- function(dbh,
                     wd,
+                    palms = NULL,
                     method = "chave14",
                     use_height_allom = FALSE) {
   # with generic height allometry from Martinez Cano et al 2019
@@ -35,6 +36,10 @@ agb_bci <- function(dbh,
                    log(wd) + 2.79495823 * log(dbh) - 0.04606298 * (log(dbh)^2))/1000
     }
   }
+  
+  ## palm specific allometry
+  if (!is.null(palms))
+    agb[palms] <- 0.0417565 * dbh[palms] ^ 2.7483 * 1e-3
   
   return(agb)
 }
@@ -84,7 +89,7 @@ interpolate_missing <- function(dbh, year, DFstatus) {
   }
 }
 
-# substitute abnormal hcanges in DBH ####
+# substitute abnormal changes in DBH ####
 ## get symmetrical distribution of dbh change by transforming with modulus function
 ## then calculate mean dbh or agb change and backtransform
 
@@ -93,7 +98,8 @@ substitute_change = function(varD,
                              lambda = 0.5,
                              value = "D",
                              D = NULL,
-                             WD = NULL) {
+                             WD = NULL, 
+                             palms = NULL) {
   
   keep_values = which(varD > cut[1] & varD < cut[2] & !is.na(varD))
   change_values = which((varD <= cut[1] | varD >= cut[2]) & !is.na(varD))
@@ -108,7 +114,8 @@ substitute_change = function(varD,
   }
   
   if (value == "AGB") {
-    dAGB = agb_bci(dbh = D + varD, wd = WD) - agb_bci(dbh = D, wd = WD)
+    dAGB = agb_bci(dbh = D + varD, wd = WD, palms) - 
+      agb_bci(dbh = D, wd = WD, palms)
     if (length(change_values) == 1) {
       dAGB[change_values] = ExpDiffAGB(
         d = D[change_values],
@@ -136,11 +143,11 @@ modulus = function(d, lambda = 0.4) {
   return(sign(d) * abs(d) ^ lambda)
 }
 
-ExpDiffAGB = function(d, wd, lambda, mu, sigma) {
+ExpDiffAGB = function(d, wd, lambda, mu, sigma, palms = NULL) {
   # AGB > 0 => d + modulus(x, 1/lambda) > 0 => x > -(d^lambda)
   minVar = -d ^ lambda
   pdfdAGB = function(x) {
-    dAGB = agb_bci(d + modulus(x, 1 / lambda), wd) - agb_bci(d, wd)
+    dAGB = agb_bci(d + modulus(x, 1 / lambda), wd, palms) - agb_bci(d, wd, palms)
     dens = truncnorm::dtruncnorm(x, mean = mu, sd = sigma, a = minVar)
     return(dAGB * dens)
   }
