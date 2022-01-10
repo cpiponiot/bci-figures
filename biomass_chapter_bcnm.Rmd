@@ -157,19 +157,23 @@ The standard height for measuring tree diameter is 1.3 m (referred to as diamete
 Estimates of biomass stocks and fluxes at the plot level are very sensitive to the choice of biomass allometry (Figure \@ref(fig:fig1-allom)) and to the procedures used to deal with non-standard measurement heights and outliers for diameter changes (Figure \@ref(fig:fig2-correc)). In addition, there are specific problems with the early BCI plot censuses: in the first census, all trees were measured at breast height, even buttress trees with highly irregular trunks; therefore, we have removed the first census (1981-1982) from the figures in this chapter. In the first two censuses, the diameter of small stems (< 5.5 cm) was rounded to the nearest 5 mm, while the diameter of all other stems was reported to the nearest 1 mm; in the last censuses, all stem diameters were reported to 1 mm. Finally, prior to 2010, there were no individual stem tags on multi-stemmed trees, making it difficult to estimate their biomass dynamics. Together, these factors explain why no two papers give the same values for BCI biomass stocks and fluxes [e.g., @Chave2003;@Rutishauser2020 xxx].
 
 
-```{r fig2-correc, fig.height = 8, fig.width = 12, fig.cap="Some examples of corrections on individual tree aboveground biomass (AGB; Mg) and AGB changes (Mg/yr), and their effect on total plot AGB (Mg/ha) and aboveground woody productivity (AWP; Mg/ha/yr)."}
+```{r fig2-correc, fig.height = 10, fig.width = 12, fig.cap="Some examples of corrections on individual tree aboveground biomass (AGB; Mg) and AGB changes (Mg/yr), and their effect on total plot AGB (Mg/ha) and aboveground woody productivity (AWP; Mg/ha/yr)."}
 # Figure 2 - Corrections ####
 # fig2a - illustration with one problematic tree
 df_ind <- subset(df_ind, stemID=="1428")
 
 df_ind$agb <- df_ind$chave14
 # could substitute dbh with agb
-vars <- paste0(rep(c("D", ""), each = 3), "agb", c("", "_t", "_ts"))
+vars <- c("dbh", "hom", paste0(rep(c("", "D"), each = 3), "agb", c("", "_t", "_ts")))
 df_ind_melt <- data.table::melt(df_ind, measure.vars = vars, id.vars = "year")
 
 df_ind_melt[, method := data.table::tstrsplit(variable, "_")[[2]]]
 df_ind_melt[is.na(method), method := "original"]
 df_ind_melt[, variable := data.table::tstrsplit(variable, "_")[[1]]]
+
+# change years of Dagb to correspond to mean between two censuses (as Dagb is
+# the AGB change between two censuses)
+df_ind_melt[variable == "Dagb", year := year + diff(year)/2]
 
 # change name of methods and variable levels
 df_ind_melt$method <- factor(df_ind_melt$method, levels = c("original", "t", "ts"))
@@ -177,14 +181,18 @@ levels(df_ind_melt$method) <- list("Original data" = "original",
                                    "Taper correction" = "t", 
                                    "Taper correction + Outlier substitution" = "ts")
 
-df_ind_melt$variable <- factor(df_ind_melt$variable, levels = c("agb", "Dagb"))
-levels(df_ind_melt$variable) <- list("AGB (Mg)" = "agb", "AWP (Mg/yr)" = "Dagb")
+df_ind_melt$variable <- factor(df_ind_melt$variable, levels = c("dbh", "hom", "agb", "Dagb"))
+levels(df_ind_melt$variable) <- list("DBH (cm)" = "dbh", 
+                                     "HOM (m)" = "hom", 
+                                     "AGB (Mg)" = "agb",
+                                     "AWP (Mg/yr)" = "Dagb")
 
 # make panel labels 
-dflabs <- data.frame(variable = levels(df_ind_melt$variable), label = letters[1:2])
+dflabs <- data.frame(variable = levels(df_ind_melt$variable), label = letters[1:4])
+dflabs$variable <- factor(dflabs$variable, levels = levels(df_ind_melt$variable))
 
 # make individual level panels a and b
-fig2ab_corr_tree <- ggplot(df_ind_melt, aes(x = year, y = value, color = method)) +
+fig2ad_corr_tree <- ggplot(df_ind_melt, aes(x = year, y = value, color = method)) +
   geom_line(lty = 2) +
   geom_point() + 
   geom_line(data = subset(df_ind_melt, method=="Taper correction"), lty = 2) +
@@ -226,9 +234,9 @@ dfcorr$variable <- factor(dfcorr$variable, levels = c("agb", "awp"))
 levels(dfcorr$variable) <- list("AGB (Mg/ha)" = "agb", "AWP (Mg/ha/yr)" = "awp")
 
 # make panel labels 
-dflabs <- data.frame(variable = levels(dfcorr$variable), label = letters[3:4])
+dflabs <- data.frame(variable = levels(dfcorr$variable), label = letters[5:6])
 
-fig2cd_corr_plot <-
+fig2ef_corr_plot <-
   ggplot(dfcorr, aes(x = year, y = value, color = method)) +
   geom_point() + geom_line(lty = 2) +
   geom_line(data = subset(dfcorr, method=="Original data"), lty = 2) +
@@ -248,14 +256,14 @@ fig2cd_corr_plot <-
 
 fig2_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig2cd_corr_plot))
 
-plts <- ggpubr::ggarrange(fig2ab_corr_tree, 
-                          fig2cd_corr_plot + theme(legend.position = "none"), 
-                          nrow = 2)
+plts <- ggpubr::ggarrange(fig2ad_corr_tree, 
+                          fig2ef_corr_plot + theme(legend.position = "none"), 
+                          nrow = 2, heights = c(2,1))
 ggpubr::ggarrange(plts, fig2_leg, nrow = 1, widths = c(4, 1))
 ```
 
 
-```{r fig3-groups, fig.height = 4, fig.width = 8, fig.cap="Stacked barplots showing the proportion (%) of aboveground biomass (AGB) and aboveground woody productivity (AWP) in different groups. (a) Proportion of AGB (left) and AWP (right) by size class (from blue to red).  Proportion of AGB (left) and AWP (right) by plant functional type as defined in @Ruger2020."}
+```{r fig3-groups, fig.height = 4, fig.width = 8, fig.cap="Stacked barplots showing the proportion (%) of aboveground biomass (AGB) and aboveground woody productivity (AWP) in different groups. (a) Proportion of AGB (left) and AWP (right) by diameter class (from blue to red). (b) Proportion of AGB (left) and AWP (right) by plant functional type (PFT) as defined in @Ruger2020. PFTs were defined along two major trade-off axes: a growth-survival trade-off (Slow vs. Fast species) and a stature-recruitment trade-off (Long-lived pioneers vs. Short-lived breeders). Intermediate species have intermediate values on those two functional axes. Species without a PFT are either palms or rare species that were not assigned a PFT in @Ruger2020."}
 # Figure 3 - AGB per group ####
 
 # # estimate percentage of each size class or PFT group per variable
@@ -279,12 +287,21 @@ fig3a_bis_groups_size <- ggplot(df_size_bis) +
 df_pft_bis <- data.table::melt(df_pft, measure.vars = c("agb", "awp"))
 # change variable labels (AGB, AWP) to upper case
 levels(df_pft_bis$variable) <- toupper(levels(df_pft_bis$variable))
+
+# order and rename PFT 
+df_pft_bis$PFT <- factor(df_pft_bis$PFT, levels = c("slow", "fast", "LLP", "SLB", "intermediate", "NA"))
+levels(df_pft_bis$PFT) <- list("Slow" = "slow", "Fast" = "fast", 
+                               "Long-lived pioneers" = "LLP", 
+                               "Short-lived breeders" = "SLB", 
+                               "Intermediate" = "intermediate", 
+                               "No value" = "NA")
+
 # figure 3a bis
 fig3b_bis_groups_pft <- ggplot(df_pft_bis) + 
   geom_col(aes(x = variable, y = value*100, fill = PFT)) + 
   labs(x = "", y = "Proportion (%)", fill = "PFT") +
   scale_y_continuous(expand = c(0, 0)) +  
-  scale_fill_manual(values = c("gold", "darkorange", "seagreen", "royalblue", "orchid")) +
+  scale_fill_manual(values = c("orchid", "gold", "seagreen", "royalblue", "darkorange")) +
   theme_classic()
 
 ggpubr::ggarrange(fig3a_bis_groups_size, fig3b_bis_groups_pft, ncol = 2, labels = "auto")

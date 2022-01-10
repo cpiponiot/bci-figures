@@ -4,6 +4,8 @@
 # Author: Camille Piponiot, github.com/cpiponiot  #
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 
+# source internal functions 
+source("functions.R")
 
 ### Get BCI 50-ha plot data ####
 
@@ -65,25 +67,26 @@ str_figs[, .(nquadrat = length(unique(quadrat)), nfigs = length(unique(treeID)))
 
 df_stem <- subset(df_stem, ! treeID %in% str_figs$treeID)
 
+
+### estimate individual aboveground biomass using different methods ####
+
 # add median species dbh to apply the palm allometry as in Rutishauser et al., 2020
 # all palms except Socratea
 df_stem[Family == "Arecaceae" & Genus != "Socratea", dbh := median(dbh, na.rm = TRUE), .(Latin)]
 
-### estimate individual aboveground biomass using different methods ####
-
 # no correction
 
 # Chave et al 2014 allometric equation, no height information
-df_stem[, chave14 := agb_bci(dbh = dbh, wd = wsg, method = "chave14", palms = Genus %in% palms)]
+df_stem[, chave14 := agb_bci(dbh = dbh, wd = wsg, method = "chave14", palms = (Family == "Arecaceae"))]
 
 # Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2019
-df_stem[, chave14_h := agb_bci(dbh = dbh, wd = wsg, method = "chave14", use_height_allom = TRUE, palms = Genus %in% palms)]
+df_stem[, chave14_h := agb_bci(dbh = dbh, wd = wsg, method = "chave14", use_height_allom = TRUE, palms = (Family == "Arecaceae"))]
 
 # Chave et al 2005 allometric equation, no height information
-df_stem[, chave05 := agb_bci(dbh = dbh, wd = wsg, method = "chave05", palms = Genus %in% palms)]
+df_stem[, chave05 := agb_bci(dbh = dbh, wd = wsg, method = "chave05", palms = (Family == "Arecaceae"))]
 
 # Chave et al 2005 allometric equation, tree height from Martinez Cano et al., 2019
-df_stem[, chave05_h := agb_bci(dbh = dbh, wd = wsg, method = "chave05", use_height_allom = TRUE, palms = Genus %in% palms)]
+df_stem[, chave05_h := agb_bci(dbh = dbh, wd = wsg, method = "chave05", use_height_allom = TRUE, palms = (Family == "Arecaceae"))]
 
 # corr1: taper correction
 # from Cushman et al., 2021, using WSG 
@@ -91,7 +94,7 @@ df_stem[, chave05_h := agb_bci(dbh = dbh, wd = wsg, method = "chave05", use_heig
 # from Cushman et al., 2014
 df_stem[, b := exp(-2.0205 - 0.5053 * log(dbh) + 0.3748 * log(hom))]
 df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
-df_stem[, agb_t := agb_bci(dbh = dbh_t, wd = wsg, palms = Genus %in% palms)]
+df_stem[, agb_t := agb_bci(dbh = dbh_t, wd = wsg, palms = (Family == "Arecaceae"))]
 
 # corr2: interpolate missing DBHs
 df_stem[, dbh_ti := interpolate_missing(dbh_t, year, DFstatus), .(stemID)]
@@ -145,8 +148,14 @@ ruger_levels <- data.frame(matrix(ruger_levels, ncol = 2, byrow = TRUE))
 colnames(ruger_levels) = c("PFT_2axes", "PFT")
 ruger_data <- merge(ruger_data, ruger_levels)
 
+# give same PFT to two Swartzia simplew subspecies
+swartzia2 <- subset(ruger_data, Genus=="Swartzia")
+swartzia2$sp <- "swars2"
+ruger_data <- rbind(ruger_data, swartzia2)
+  
 # add PFTs to df_stem
-df_stem <- merge(df_stem, ruger_data[, c("sp", "PFT")], all.x = TRUE)
+df_stem <- merge(df_stem, ruger_data[, c("sp", "PFT")], by = "sp", all.x = TRUE)
+
 
 # plot-level AGB and AWP ####
 
