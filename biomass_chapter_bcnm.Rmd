@@ -58,10 +58,10 @@ if (!file.exists("data/data-main-script.rda"))
 
 # Introduction
 
-Biomass is the mass of all living things in an ecosystem, and is usually measured on oven-dried material, thus excluding water. The biomass of a forest is dominated by the aboveground woody parts of the trees, mainly the trunks and branches [ref]. It was rarely considered in ecology until about 30 years ago, but has recently received much attention due to increased interest in the global carbon cycle and the crucial role of forests in this cycle [ref]. This has led to an increase in the number of papers calculating forest biomass stocks and biomass fluxes associated with tree growth and mortality [ref].
+Biomass is the mass of all living things in an ecosystem, and is usually measured on oven-dried material, thus excluding water. The biomass of a forest is dominated by the aboveground woody parts of the trees, mainly the trunks and branches [RSR: @Qi2019;@Jackson1996; exs partition of total carbon stocks: @Zekeng2020;@Sierra2007]. It was rarely considered in ecology until about 30 years ago, but has recently received much attention due to increased interest in the global carbon cycle and the crucial role of forests in this cycle [@Brown1982]. This has led to an increase in the number of papers calculating forest biomass stocks and biomass fluxes associated with tree growth and mortality [@Huang2020].
 
-The traditional method of estimating tree biomass is to measure the basic characteristics (such as diameter) of all trees in a given area, and derive an estimate of biomass. On Barro Colorado Island, a 50-ha plot was established in 1980 to regularly measure all stems from 1 cm in diameter upward, allowing for an extensive estimate of woody biomass in the plot and its changes over time. In this chapter, we will explore the results of 35 years of measurements on the plot, focusing on aboveground biomass stocks and fluxes: how to estimate them, their temporal and spatial variation on the plot, and their distribution into size and functional groups. We will then briefly present other biomass stocks and fluxes, including below-ground biomass of trees, other plants (lianas, others?)
-
+The traditional method of estimating tree biomass is to measure the basic characteristics (such as diameter) of all trees in a given area, and derive an estimate of biomass. On Barro Colorado Island, a 50-ha plot was established in 1980 to regularly measure all stems from 1 cm in diameter upward, allowing for an extensive estimate of woody biomass in the plot and its changes over time. In this chapter, we will explore the results of 35 years of measurements on the plot, focusing on aboveground biomass stocks and fluxes: how to estimate them, their temporal and spatial variation on the plot, and their distribution into size and functional groups. We will then briefly present other woody biomass stocks and fluxes, including below-ground biomass of trees and lianas. Landscape-level biomass variation in Barro Colorado National Monument from other smaller forest plots and from remote sensing is presented in Chapters xx and xx respectively. The effect of experimental manipulations (Gigante fertilization experiments; addition or removal of litter; liana removal) on forest biomass is presented in Chapters xx, xx, and xx respectively. 
+    
 # Plot-based tree aboveground biomass methods
 
 > add something about plot layout, what trees are measured (eg dbh threshold?)
@@ -326,19 +326,12 @@ Biomass stocks and fluxes exhibit high small-scale spatial variability in the 50
 
 *	Spatial variation in BCNM AGB stocks and fluxes from multiple plots, and experimental results 
 
-The 50 ha plot is not representative of the island of Barro Colorado, let alone the entire Barro Colorado National Monument: it is located in a particularly flat part of the island, with a relatively homogeneous geological substrate and fairly old forest [@Baillie2006;@Mascaro2011]. This contrasts with the rest of the island, has a diversity of soil types, geologic substrates, topographic variation, and forest age [@Baillie2006;@Mascaro2011]. To understand how biomass stocks and fluxes vary across Barro Colorado National Monument, smaller forest plots were set up: xx large plots spread across the island where only the largest trees (>20 cm DBH) were measured, and xxx 1 ha plots where all trees larger than 10 cm DBH were measured. (map in supplementary material? + figure or table showing AGB stocks and fluxes variation?)
+The 50 ha plot is not representative of the island of Barro Colorado, let alone the entire Barro Colorado National Monument: it is located in a particularly flat part of the island, with a relatively homogeneous geological substrate and fairly old forest [@Baillie2006;@Mascaro2011]. This contrasts with the rest of the island, has a diversity of soil types, geologic substrates, topographic variation, and forest age [@Baillie2006;@Mascaro2011]. To understand how biomass stocks and fluxes vary across Barro Colorado National Monument, smaller forest plots were set up: xx large plots spread across the island where only the largest trees (>20 cm DBH) were measured, and xxx 1 ha plots where all trees larger than 10 cm DBH were measured. Results from this set of plots are presented in Chapter xx. 
 
-    + The 50 ha plot has a larger mean biomass then the rest of the Barro Colorado National Monument (ref figure with 1-ha plots + large BCI plots). 
++ The 50 ha plot has a larger mean biomass then the rest of the Barro Colorado National Monument (ref figure with 1-ha plots + large BCI plots). 
 
-    + Plot data also used to calibrate remote sensing and these then used to estimate broader spatial patterns – ref other chapter on this.
++ Plot data also used to calibrate remote sensing and these then used to estimate broader spatial patterns – ref other chapter on this.
 
-*	Experimental results from BCNM work on AGB stocks and fluxes (one sentence on each, and refs to associated chapters)
-
-    + Soil fertility – Gigante fertilization experiments 
-
-    + Litter addition/removal
-
-    + Liana removal 
 
 > Other woody biomass pools and fluxes ?
 
