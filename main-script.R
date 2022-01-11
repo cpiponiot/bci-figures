@@ -115,7 +115,27 @@ df_stem[, Dagb := c(diff(agb_t)/diff(year), NA), .(stemID)]
 df_stem[, Dagb_t := c(diff(agb_t)/diff(year), NA), .(stemID)]
 df_stem[, dT := c(diff(year), NA), .(stemID)]
 
-# size groups 
+# correct for small stems that were rounded down to the nearest 5 mm in 1985:
+# substitute DBH values of trees DBH < 55 mm in 1985 and 1990, with median DBH
+# values measured in 1990 for each rounding class size groups (see SI in
+# Rutishauser et al 2020)
+small_stems <- df_stem[year == 1985 & dbh < 5.5, unique(stemID)]
+df_small <- subset(df_stem, stemID %in% small_stems)
+# round down small stems in 1990
+df_small[dbh < 5.5, dbh_r := floor(dbh/0.5)*0.5]
+# get small stems' median dbh in 1990
+median_dbh <- df_small[year==1990 & dbh < 5.5, .(dbh_m = median(dbh)), .(dbh_r)]
+# add median dbh to the data frame
+df_small <- merge(df_small, median_dbh, all = TRUE, by = "dbh_r")[order(stemID, year)]
+# recalculate dbh growth
+df_small[, Ddbh_small := c(diff(dbh)/diff(year), NA), .(stemID)]
+# substitute dbh growth with new values in original data frame
+df_small <- df_small[year==1985 & dbh < 5.5, c("stemID", "Ddbh_small")]
+
+df_stem <- merge(df_stem, df_small, all.x = TRUE)
+df_stem[!is.na(Ddbh_small), Ddbh := Ddbh_small]
+df_stem[, Ddbh_small := NULL]
+
 maxD <- ceiling(max(df_stem$dbh_ti, na.rm = TRUE))
 df_stem[, size := cut(dbh_t, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = TRUE)]
 
