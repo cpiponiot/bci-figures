@@ -1,0 +1,508 @@
+---
+title: "Supplementary material - Woody Biomass Stocks and Fluxes in the BCNM from Plot Data"
+author:
+  - Camille Piponiot:
+      email: camille.piponiot-laroche@cirad.fr
+      institute: [fs]
+  - Helene C. Muller-Landau:
+      institute: [stri] 
+
+institute:
+  - fs: Cirad, Université de Montpellier, UR Forests and Societies, 34980 Montferrier-sur-Lez, France
+  - stri: Forest Global Earth Observatory, Smithsonian Tropical Research Institute, Apartado Postal 0843-03092, Panamá, Republic of Panamá
+
+output: 
+  bookdown::word_document2:
+    pandoc_args:
+      - '--lua-filter=common/scholarly-metadata.lua'
+      - '--lua-filter=common/author-info-blocks.lua'
+    reference_docx: common/word-styles-ref-01.docx
+  fig_caption: yes
+bibliography: references.bib
+csl: common/new-phytologist.csl
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, results = "hide")
+```
+
+# Detailed methods and codes
+
+## Get census data ready
+
+Census data was downloaded from an online Dryad repository [@Condit2019]. Census data contain 8 censuses of the Barro Colorado 50-ha plot, from 1981 to 2015, of all stems from 1 cm of diameter at breast height (`dbh`); starting in 1985, buttressed stems were measured above stem irregularities and their height of measurement was recorded (`hom`). xxx more info
+
+```{r download-bci-data}
+dryad_data_path <- rdryad::dryad_download("10.15146/5xcp-0d46")
+
+# unzip files
+zip_files <- grep("\\.zip", dryad_data_path$`10.15146/5xcp-0d46`, value = TRUE)
+zip_folders <- sapply(zip_files, function(dir) {
+  name <- gsub("\\.zip", "", data.table::last(strsplit(dir, '/')[[1]]))
+  utils::unzip(dir, exdir = name)
+})
+```
+
+The first census was usually removed from biomass analyses because buttressed trees with irregular trunks were measured at breast height, thus creating a strong bias in the biomass estimations. 
+
+```{r load-and-remove-first-census}
+# 1. list census files, except first census (which has problematic measurements
+# of large trees)
+bci_stem <- list.files("bci.stem")[-1]
+
+# 2. load census files as list
+census_list <- lapply(bci_stem, function(name) {
+  load(paste0("bci.stem/", name)); get(strsplit(name, "\\.rda")[[1]][1])
+})
+
+# 3. add census number information as list names
+names(census_list) <- data.table::tstrsplit(bci_stem, "\\.")[[2]]
+
+# 4. compile as one data table
+df_stem <- data.table::rbindlist(census_list, fill = TRUE, idcol = "censusID")
+```
+
+Each individual stem was identified to the lowest taxonomic level possible (xx% genus; xx% species; xx% subspecies) and was given a species code (`sp`). An independent species table (`bci.spptable`) contains all the taxonomic detail for each species code (species Latin name, family, subspecies when relevant, wood specific gravity).
+
+```{r add-species-info}
+load(grep("spp", dryad_data_path$`10.15146/5xcp-0d46`, value = TRUE))
+
+df_stem <- merge(df_stem, bci.spptable, by = "sp", all.x = TRUE) 
+```
+
+The exact date of measurement was recorded in the `ExactDate` column; the year of each census was estimated as the median of all measurement years for this census. 
+
+```{r add-census-year}
+df_stem[, year := as.numeric(data.table::tstrsplit(ExactDate, "-")[[1]])]
+df_stem[, census_year := median(year, na.rm = TRUE), .(censusID)]
+```
+
+Stems under 10 mm DBH or with no recorded values were excluded from the analysis.  
+
+```{r remove-smallest-stems}
+df_stem <- subset(df_stem, dbh >= 10 | is.na(dbh))
+```
+
+Individuals of strangler fig species (*Ficus costaricana*, *Ficus obtusifolia*, *Ficus popenoei*, and *Ficus trigonata*) with DBH > 50 cm DBH were excluded from the analysis [see @Rutishauser2020].
+
+```{r remove-strangler-figs}
+large_strangler_figs <- subset(df_stem, (
+  dbh > 50 &
+    Genus == "Ficus" &
+    Species %in% c("costaricana", "obtusifolia", "popenoei", "trigonata")
+))
+
+df_stem <- subset(df_stem, ! stemID %in% large_strangler_figs$stemID)
+```
+
+
+## Estimate individual aboveground biomass using different methods 
+
+We converted DBH values to cm in the data to match the units used in allometric equations.
+
+```{r dbh-in-cm}
+df_stem[, dbh := dbh/10]
+```
+
+No palm species, except *Socratea exorrhiza*, grows in diameter. Therefore, all changes in DBH of palms can be considered measurement errors. We replaced the DBH of palms by the species median DBH value over all censuses, except for *Socratea exorrhiza*, following @Rutishauser2020.
+
+```{r median-dbh-palms}
+df_stem[Family == "Arecaceae" & Genus != "Socratea", dbh := median(dbh, na.rm = TRUE), .(Latin)]
+```
+
+### Using different allometries
+
+We tested two sets of allometries: the ones from @Chave2014 and from @Chave2005. For each set of allometry we used the equation with only DBH and wood specific gravity as explanatory variables, and the equation that includes height as well; in the latter case, we estimtaed height using the generic height allometry from @MartinezCano2019. For palms we used a generic palm allometry from @Goodman2013. 
+
+```{r allometries}
+# estimate agb values at BCI with allometric equations from Chave et al. 2014
+# (method = "chave14") or Chave et al., 2005 (method = "chave05"); the height
+# equation from Martinez Cano et al 2019 is used when use_height_allom = TRUE. 
+# Results are returned in Mg. 
+agb_bci <- function(dbh,  # dbh, in cm
+                    wsg,  # wood specific gravity values 
+                    palms = NULL,  # logical: is the individual a palm?
+                    method = "chave14", 
+                    use_height_allom = FALSE) {
+  # with generic height allometry from Martinez Cano et al 2019
+  if (use_height_allom) {
+    # Chave et al 2005 - moist forests, with height (in Mg)
+    h <- 58.0 * dbh ^ 0.73 / (21.8 + dbh ^ 0.73)
+    if (method == "chave05") {
+      agb <- 0.0509 * wsg * dbh ^ 2 * h / 1000
+    }
+    if (method == "chave14") {
+      # Chave et al. 2014, equation 4 with the BIOMASS package 
+      agb <- (0.0673 * (wsg * h * dbh^2)^0.976)/1000
+    }
+  } else {
+    # without any height information
+    # Chave et al 2005 - moist forests, without height (in Mg)
+    if (method == "chave05") {
+      agb <- wsg * exp(-1.499 + 2.148 * log(dbh) + 
+                        0.207 * log(dbh) ^ 2 - 0.0281 * log(dbh) ^ 3) /1000
+    }
+    if (method == "chave14") {
+      # Chave et al. 2014, equation 7 with the BIOMASS package (transform into kg)
+      E <- 0.05176398
+      agb <- exp(-2.023977 - 0.89563505 * E + 0.92023559 * 
+                   log(wsg) + 2.79495823 * log(dbh) - 0.04606298 * (log(dbh)^2))/1000
+    }
+  }
+  
+  ## palm specific allometry
+  if (!is.null(palms))
+    agb[palms] <- 0.0417565 * dbh[palms] ^ 2.7483 /1000
+  
+  return(agb)
+}
+```
+
+
+
+```{r estimate-agb-census}
+# Chave et al 2014 allometric equation, no height information
+df_stem[, chave14 := agb_bci(dbh = dbh, 
+                             wsg = wsg, 
+                             method = "chave14", 
+                             palms = (Family == "Arecaceae"))]
+
+# Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2019
+df_stem[, chave14_h := agb_bci(dbh = dbh, 
+                               wsg = wsg, 
+                               method = "chave14", 
+                               use_height_allom = TRUE, 
+                               palms = (Family == "Arecaceae"))]
+
+# Chave et al 2005 allometric equation, no height information
+df_stem[, chave05 := agb_bci(dbh = dbh, 
+                             wsg = wsg, 
+                             method = "chave05", 
+                             palms = (Family == "Arecaceae"))]
+
+# Chave et al 2005 allometric equation, tree height from Martinez Cano et al., 2019
+df_stem[, chave05_h := agb_bci(dbh = dbh, 
+                               wsg = wsg, 
+                               method = "chave05", 
+                               use_height_allom = TRUE, 
+                               palms = (Family == "Arecaceae"))]
+```
+
+### Applying different corrections
+
+
+#### Taper correction
+
+```{r}
+# from Cushman et al., 2021, using WSG 
+# df_stem[, b := 0.151 - 0.025 * log(dbh) - 0.02 * log(hom) - 0.021 * log(wsg)]
+# from Cushman et al., 2014
+df_stem[, b := exp(-2.0205 - 0.5053 * log(dbh) + 0.3748 * log(hom))]
+df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
+df_stem[, agb_t := agb_bci(dbh = dbh_t, wsg = wsg, palms = (Family == "Arecaceae"))]
+```
+
+#### Interpolate missing DBHs
+```{r}
+df_stem[, dbh_ti := interpolate_missing(dbh_t, year, DFstatus), .(stemID)]
+missingIDs <- unique(subset(df_stem, is.na(dbh_t) & !is.na(dbh_ti))$stemID)
+subset(df_stem, stemID==missingIDs[1])[, c("stemID", "year", "Latin", "dbh", "dbh_t", "dbh_ti")]
+
+# remove non-measurements 
+df_stem <- subset(df_stem, !is.na(dbh_ti))
+df_stem[, dbh_t := dbh_ti]
+```
+
+#### Replace DHB or AGB growth
+
+order df_stem by treeID, stemID and year
+
+```{r}
+data.table::setorder(df_stem, treeID, stemID, year)
+```
+
+estimate dbh and agb variation between two censuses, in cm/yr; with or without taper correction
+
+```{r}
+df_stem[, Ddbh := c(diff(dbh)/diff(year), NA), .(stemID)]
+df_stem[, Ddbh_t := c(diff(dbh_t)/diff(year), NA), .(stemID)]
+df_stem[, Dagb := c(diff(agb_t)/diff(year), NA), .(stemID)]
+df_stem[, Dagb_t := c(diff(agb_t)/diff(year), NA), .(stemID)]
+df_stem[, dT := c(diff(year), NA), .(stemID)]
+```
+
+#### Correct for small stems in 1985
+
+```{r}
+# correct for small stems that were rounded down to the nearest 5 mm in 1985:
+# substitute DBH values of trees DBH < 55 mm in 1985 and 1990, with median DBH
+# values measured in 1990 for each rounding class size groups (see SI in
+# Rutishauser et al 2020)
+small_stems <- df_stem[year == 1985 & dbh < 5.5, unique(stemID)]
+df_small <- subset(df_stem, stemID %in% small_stems)
+# round down small stems in 1990
+df_small[dbh < 5.5, dbh_r := floor(dbh/0.5)*0.5]
+# get small stems' median dbh in 1990
+median_dbh <- df_small[year==1990 & dbh < 5.5, .(dbh_m = median(dbh)), .(dbh_r)]
+# add median dbh to the data frame
+df_small <- merge(df_small, median_dbh, all = TRUE, by = "dbh_r")[order(stemID, year)]
+# recalculate dbh growth
+df_small[, Ddbh_small := c(diff(dbh)/diff(year), NA), .(stemID)]
+# substitute dbh growth with new values in original data frame
+df_small <- df_small[year==1985 & dbh < 5.5, c("stemID", "Ddbh_small")]
+
+df_stem <- merge(df_stem, df_small, all.x = TRUE)
+df_stem[!is.na(Ddbh_small), Ddbh := Ddbh_small]
+df_stem[, Ddbh_small := NULL]
+``` 
+
+Define size classes based on DBH
+```{r}
+maxD <- ceiling(max(df_stem$dbh_ti, na.rm = TRUE))
+df_stem[, size := cut(dbh_t, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = TRUE)]
+```
+
+#### Outlier substitution
+
+Change abnormal AGB changes
+```{r}
+## change abnormal dbh changes, grouping by size
+df_stem[!is.na(Ddbh), `:=`(
+  Ddbh_ts = substitute_change(varD = Ddbh_t, cut = c(-0.5, 5)),
+  Dagb_ts = substitute_change(D = dbh_t, varD = Ddbh_t, WD = wsg, 
+                              value = "AGB", cut = c(-0.5, 5))),
+  size]
+```
+
+
+translate dbh values (or agb values) with substituted dbh or agb
+
+```{r}
+data.table::setorder(df_stem, year)
+df_stem[, dbh_ts := dbh_t[1] + c(0, cumsum_naomit(Ddbh_ts*dT)[-length(dT)]), .(stemID)]
+# df_stem[, agb_ts := agb_bci(dbh = dbh_ts, wd = wsg)]
+df_stem[, agb_ts := agb_t[1] + c(0, cumsum_naomit(Dagb_ts*dT)[-length(dT)]), .(stemID)]
+```
+
+## Aggregating AGB values 
+
+melt to long format with a method column = allometries and methods used, and an 'agb' column = agb estimations under different methods
+```{r}
+df_stem_melt <-
+  data.table::melt(
+    df_stem,
+    id.vars = c("stemID", "treeID", "census_year", "quadrat", "DFstatus", "size", "sp"), 
+    measure.vars = grep("chave|Dagb|agb_", colnames(df_stem)),
+    variable.name = "method",
+  )
+
+df_stem_melt[, variable := c("agb", "awp")[grepl("Dagb", method) + 1]]
+df_stem_melt[grepl("_ts", method), method := "chave14+taper+subs"]
+df_stem_melt[grepl("_t", method), method := "chave14+taper"]
+df_stem_melt[method == "Dagb", method := "chave14"]
+
+# replace NAs with 0 in agb values
+df_stem_melt[is.na(value), value := 0]
+```
+
+define function for Kohyama correction
+
+```{r kohyama-correction}
+kohyama_correction <- function(stock, gain, loss, dT, output = "prod") {
+  B0 <- stock
+  BS0 <- B0 - loss * dT
+  BT <- B0 + (gain - loss) * dT
+  if (output == "prod") {
+    outp <- (log(BT / BS0) * (BT - B0)) / (dT * log(BT / B0))
+  } else if (output == "mort"){
+    outp <- (log(B0 / BS0) * (BT - B0)) / (dT * log(BT / B0))
+  } else 
+    stop("Please provide either 'prod' (production) or 'mort' (mortality) as an output.")
+  return(outp)
+}
+```
+
+define function that aggregates values according to a grouping factor (e.g. methods used, quadrats, plant functional types) and apply Kohyama correction [@Kohyama2019]
+
+```{r aggregate-agb-dyn-function}
+aggregate_agb_dyn <- function(group, # grouping factor
+                              area,  # unit area
+                              agg_years = FALSE,  # aggregate over years?
+                              long = FALSE # give results in long format?
+) {
+  
+  # get long format table with aggregated values 
+  df <- df_stem_melt[,  .(value = sum(value) / area),
+                     .(variable, year = census_year, group = get(group))]
+  
+  df <- data.table::dcast(df, year + group ~ variable)
+  
+  # apply Kohyama correction 
+  # > need to estimate mortality
+  df[order(year), `:=` (dT = c(diff(year), NA), 
+                        awm = awp - c(diff(agb)/diff(year), NA)), .(group)]
+  df[, awp := kohyama_correction(agb, awp, awm, dT)]
+  
+  # mean across all years
+  if (agg_years)
+    df <- df[, .(agb = mean(agb), awp = mean(awp, na.rm = TRUE)), .(group)]
+  
+  if (long) {
+    ids <- c("group", "year")[c("group", "year") %in% colnames(df)]
+    df <- data.table::melt(df, measure.vars = c("agb", "awp"), id.vars = ids)
+  }
+    
+  colnames(df)[1] <- group
+  return(df)
+}
+```
+
+### By methods used
+
+```{r}
+df_plot <- aggregate_agb_dyn("method", 50, long = TRUE)
+```
+
+
+From now on, only taper correction for agb (substitution can create biases in agb) and taper + substitution for awp
+
+```{r}
+df_stem_melt <- subset(df_stem_melt,
+                       (method == "chave14+taper+subs" & variable == "awp") |
+                         (method == "chave14+taper" & variable == "agb")
+)
+```
+
+<!-- ### By quadrat -->
+
+<!-- ```{r} -->
+<!-- df_quadrat <- aggregate_agb_dyn("quadrat", 0.2^2) -->
+<!-- ``` -->
+
+<!-- add quadrat coordinates -->
+<!-- ```{r} -->
+<!-- df_quadrat$X <- as.numeric(substr(df_quadrat$quadrat, 1, 2))*20 + 10 -->
+<!-- df_quadrat$Y <- as.numeric(substr(df_quadrat$quadrat, 3, 4))*20 + 10 -->
+<!-- df_quadrat <- subset(df_quadrat, !is.na(quadrat) & quadrat != "") -->
+<!-- ``` -->
+
+
+### By size class
+```{r}
+df_size <- aggregate_agb_dyn(group = "size", area = 50, agg_years = TRUE)
+```
+
+
+# By plant functional group
+
+add functional groups, based on Ruger et al 2020, Data S1
+
+download data
+
+```{r}
+if (!file.exists("ruger_data_s1.xlsx"))
+  utils::download.file(url = "https://www.science.org/doi/suppl/10.1126/science.aaz4797/suppl_file/aaz4797_ruger_data_s1.xlsx", 
+                       destfile = "ruger_data_s1.xlsx")
+# read downloaded data
+ruger_data <- readxl::read_xlsx("ruger_data_s1.xlsx", sheet = "Data")
+ruger_data$sp <- tolower(ruger_data$sp)
+``` 
+
+get PFT definition from metadata
+```{r}
+ruger_levels <- strsplit("1=slow, 2=fast, 3=LLP, 4=SLB, 5=intermediate", "=|, ")[[1]]
+ruger_levels <- data.frame(matrix(ruger_levels, ncol = 2, byrow = TRUE))
+colnames(ruger_levels) = c("PFT_2axes", "PFT")
+ruger_data <- merge(ruger_data, ruger_levels)
+```
+
+give same PFT to two Swartzia simplew subspecies
+```{r}
+swartzia2 <- subset(ruger_data, Genus=="Swartzia")
+swartzia2$sp <- "swars2"
+ruger_data <- rbind(ruger_data, swartzia2)
+``` 
+
+add PFTs to df_stem_melt
+```{r}
+df_stem_melt <- merge(df_stem_melt, ruger_data[, c("sp", "PFT")], by = "sp", all.x = TRUE)
+```
+
+```{r}
+df_pft <- aggregate_agb_dyn("PFT", 50, agg_years = TRUE)
+``` 
+
+```{r}
+df_ind <- subset(df_stem, stemID %in% c(2031, 3671, 1428))
+```
+
+## calculate crown distributed agb and awp
+
+<!-- set arguments -->
+<!-- ```{r} -->
+<!-- hpix <- 2 # size of pixel, in m -->
+<!-- yr <- 2010 -->
+<!-- ``` -->
+
+<!-- crown allometry from Martinez Cano et al 2019 -->
+<!-- ```{r} -->
+<!-- dftemp <- df_stem[year==yr, c("stemID", "dbh_t", "gx", "gy", "agb_t", "Dagb_ts")] -->
+<!-- dftemp[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ] -->
+<!-- dftemp[, dbh_t := NULL] -->
+<!-- ``` -->
+
+<!-- edges  -->
+
+<!-- ```{r} -->
+<!-- # left side:  -->
+<!-- xmin <- floor(dftemp[gx - rcrown < 0, min(gx - rcrown)]/hpix)*hpix -->
+<!-- # right side:  -->
+<!-- xmax <- 1000 - floor(dftemp[1000-gx - rcrown < 0, min(1000 - gx - rcrown)]/hpix)*hpix -->
+<!-- # bottom:  -->
+<!-- ymin <- floor(dftemp[gy - rcrown < 0, min(gy - rcrown)]/hpix)*hpix -->
+<!-- # top:  -->
+<!-- ymax <- 500 - floor(dftemp[500-gy - rcrown < 0, min(500 - gy - rcrown)]/hpix)*hpix -->
+<!-- ``` -->
+
+<!-- get crown distributed aboveground biomass density -->
+<!-- create pixel grid -->
+
+<!-- need to mirror crowns that are partly outside the plot > extend the grid by  -->
+<!-- the largest crown in each side -->
+<!-- ```{r} -->
+<!-- grid <- expand.grid(x = seq(xmin, xmax - hpix, by = hpix) + (hpix/2),  -->
+<!--                     y = seq(ymin, ymax-hpix, by = hpix) + (hpix/2)) -->
+<!-- data.table::setDT(grid) -->
+<!-- ``` -->
+
+<!-- give each pixel a unique identifier -->
+<!-- ```{r} -->
+<!-- grid$pixID <- 1:nrow(grid) -->
+<!-- ``` -->
+
+<!-- for each pixel, select trees that could be in it (distance between the center of the pixel and the tree is less than the radius of the crown + the distance between the center of the pixel and its corners = sqrt(2)/2*hpix) could probably be more efficient -->
+<!-- ```{r} -->
+<!-- dfpix <- grid[, .(stemID = subset(dftemp, sqrt((x - gx) ^ 2 + (y - gy) ^ 2) < rcrown + sqrt(2) / -->
+<!--                                     2 * hpix)$stemID), .(pixID, x, y)] -->
+
+<!-- dfpix <- merge(dfpix, dftemp, by = "stemID") -->
+
+<!-- dfpix[, parea := area_circle_rect(x - hpix / 2, x + hpix / 2, y - hpix / 2, y + -->
+<!--                                     hpix / 2, gx, gy, rcrown)/(rcrown^2*pi), .(stemID, pixID)] -->
+<!-- ``` -->
+
+<!-- mirror pixels outside the plot back inside the plot -->
+<!-- ```{r} -->
+<!-- dfpix[, `:=`(x = abs(1000-abs(1000-x)), y = abs(500-abs(500-y)))] -->
+<!-- ``` -->
+
+<!-- aggregate values per pixel -->
+<!-- ```{r} -->
+<!-- df_crown <- dfpix[, .(agb = sum(parea*agb_t)/(hpix/100)^2,  -->
+<!--                       awp = sum(parea*Dagb_ts, na.rm = TRUE)/(hpix/100)^2), .(pixID, x, y)] -->
+<!-- ``` -->
+
+<!-- ## save results -->
+<!-- ```{r} -->
+<!-- save(df_plot, df_size, df_pft, df_ind, df_crown, file = "cache.rda") -->
+<!-- ``` -->

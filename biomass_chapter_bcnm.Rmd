@@ -51,9 +51,10 @@ source("functions.R")
 ```
 
 ```{r run-main-script}
-if (!file.exists("data/data-main-script.rda"))
-  source("main-script.R") else
-    load("data/data-main-script.rda")
+if (!file.exists("cache.rda"))
+  # source("main-script.R") else
+  knitr::knit("supp-material.Rmd") else
+    load("cache.rda")
 ```
 
 # Introduction

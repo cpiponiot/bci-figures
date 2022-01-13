@@ -353,7 +353,7 @@ df_crown <- dfpix[, .(agb = sum(parea*agb_t)/(hpix/100)^2,
                       awp = sum(parea*Dagb_ts, na.rm = TRUE)/(hpix/100)^2), .(pixID, x, y)]
 
 # save results
-save(df_plot, df_size, df_pft, df_ind, df_crown, file = "data/data-main-script.rda")
+save(df_plot, df_size, df_pft, df_ind, df_crown, file = "cache.rda")
 
 # 
 # # figure 4 ####
