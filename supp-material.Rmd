@@ -77,10 +77,10 @@ df_stem[, year := as.numeric(data.table::tstrsplit(ExactDate, "-")[[1]])]
 df_stem[, census_year := median(year, na.rm = TRUE), .(censusID)]
 ```
 
-Stems under 10 mm DBH or with no recorded values were excluded from the analysis.  
+Only stems above 10 mm DBH and alive were kept in the analysis.  
 
 ```{r remove-smallest-stems}
-df_stem <- subset(df_stem, dbh >= 10 | is.na(dbh))
+df_stem <- subset(df_stem, dbh >= 10 & grepl("A", status))
 ```
 
 Individuals of strangler fig species (*Ficus costaricana*, *Ficus obtusifolia*, *Ficus popenoei*, and *Ficus trigonata*) with DBH > 50 cm DBH were excluded from the analysis [see @Rutishauser2020].
@@ -110,7 +110,7 @@ No palm species, except *Socratea exorrhiza*, grows in diameter. Therefore, all 
 df_stem[Family == "Arecaceae" & Genus != "Socratea", dbh := median(dbh, na.rm = TRUE), .(Latin)]
 ```
 
-### Using different allometries
+### Using different allometric equations
 
 We tested two sets of allometries: the ones from @Chave2014 and from @Chave2005. For each set of allometry we used the equation with only DBH and wood specific gravity as explanatory variables, and the equation that includes height as well; in the latter case, we estimtaed height using the generic height allometry from @MartinezCano2019. For palms we used a generic palm allometry from @Goodman2013. 
 
@@ -188,98 +188,228 @@ df_stem[, chave05_h := agb_bci(dbh = dbh,
                                palms = (Family == "Arecaceae"))]
 ```
 
-### Applying different corrections
+### Applying the taper correction
 
-
-#### Taper correction
+The DBH of stems measured above 1.3 m was corrected for taper with the generic equation from @Cushman2014; the corrected DBH is stored in the `dbh_t`column and the corresponding aboveground biomass in the `agb_t`column. 
 
 ```{r}
-# from Cushman et al., 2021, using WSG 
-# df_stem[, b := 0.151 - 0.025 * log(dbh) - 0.02 * log(hom) - 0.021 * log(wsg)]
-# from Cushman et al., 2014
 df_stem[, b := exp(-2.0205 - 0.5053 * log(dbh) + 0.3748 * log(hom))]
 df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
 df_stem[, agb_t := agb_bci(dbh = dbh_t, wsg = wsg, palms = (Family == "Arecaceae"))]
 ```
 
-#### Interpolate missing DBHs
-```{r}
-df_stem[, dbh_ti := interpolate_missing(dbh_t, year, DFstatus), .(stemID)]
-missingIDs <- unique(subset(df_stem, is.na(dbh_t) & !is.na(dbh_ti))$stemID)
-subset(df_stem, stemID==missingIDs[1])[, c("stemID", "year", "Latin", "dbh", "dbh_t", "dbh_ti")]
 
-# remove non-measurements 
-df_stem <- subset(df_stem, !is.na(dbh_ti))
-df_stem[, dbh_t := dbh_ti]
-```
+<!-- #### Interpolate missing DBHs -->
 
-#### Replace DHB or AGB growth
+<!-- ```{r} -->
+<!-- df_stem[, dbh_ti := interpolate_missing(dbh_t, year, DFstatus), .(stemID)] -->
+<!-- missingIDs <- unique(subset(df_stem, is.na(dbh_t) & !is.na(dbh_ti))$stemID) -->
+<!-- subset(df_stem, stemID==missingIDs[1])[, c("stemID", "year", "Latin", "dbh", "dbh_t", "dbh_ti")] -->
 
-order df_stem by treeID, stemID and year
+<!-- # remove non-measurements -->
+<!-- df_stem <- subset(df_stem, !is.na(dbh_ti)) -->
+<!-- df_stem[, dbh_t := dbh_ti] -->
+<!-- ``` -->
 
-```{r}
+### Estimating AGB growth
+
+Individual trees AGB growth (in Mg/yr) was estimated as the difference in AGB divided by the time interval between two measurements. This was done for both the original data and the taper corrected data.
+
+```{r growth}
+# order df_stem by treeID, stemID and year
 data.table::setorder(df_stem, treeID, stemID, year)
-```
 
-estimate dbh and agb variation between two censuses, in cm/yr; with or without taper correction
-
-```{r}
-df_stem[, Ddbh := c(diff(dbh)/diff(year), NA), .(stemID)]
-df_stem[, Ddbh_t := c(diff(dbh_t)/diff(year), NA), .(stemID)]
-df_stem[, Dagb := c(diff(agb_t)/diff(year), NA), .(stemID)]
-df_stem[, Dagb_t := c(diff(agb_t)/diff(year), NA), .(stemID)]
+# time interval between the measurement and the next
 df_stem[, dT := c(diff(year), NA), .(stemID)]
+
+# original data 
+# df_stem[, Ddbh := c(diff(dbh)/diff(year), NA), .(stemID)]
+df_stem[, Dagb := c(diff(agb_t)/diff(year), NA), .(stemID)]
+
+# taper corrected data
+df_stem[, Ddbh_t := c(diff(dbh_t)/diff(year), NA), .(stemID)]
+df_stem[, Dagb_t := c(diff(agb_t)/diff(year), NA), .(stemID)]
 ```
 
-#### Correct for small stems in 1985
+#### Correction for small stems in 1985
+
+Small stems were rounded down to the nearest 5 mm in the 1985 census: this can potentially create biases when estimating AGB growth between the 1985 and 1990 censuses. To avoid this bias we 
+substituted AGB values of trees DBH < 5.5 cm in 1985 and 1990, with mean AGB values measured in 1990 for each rounding class size groups. We then recalculated AGB growth between those two censuses with the substituted AGB values. 
 
 ```{r}
-# correct for small stems that were rounded down to the nearest 5 mm in 1985:
-# substitute DBH values of trees DBH < 55 mm in 1985 and 1990, with median DBH
-# values measured in 1990 for each rounding class size groups (see SI in
-# Rutishauser et al 2020)
 small_stems <- df_stem[year == 1985 & dbh < 5.5, unique(stemID)]
 df_small <- subset(df_stem, stemID %in% small_stems)
+
 # round down small stems in 1990
 df_small[dbh < 5.5, dbh_r := floor(dbh/0.5)*0.5]
-# get small stems' median dbh in 1990
-median_dbh <- df_small[year==1990 & dbh < 5.5, .(dbh_m = median(dbh)), .(dbh_r)]
-# add median dbh to the data frame
-df_small <- merge(df_small, median_dbh, all = TRUE, by = "dbh_r")[order(stemID, year)]
+
+# get small stems' mean AGB in 1990
+median_agb <- df_small[year==1990 & dbh < 5.5, .(agb_m = mean(agb)), .(dbh_r)]
+
+# add mean agb to the data frame
+df_small <- merge(df_small, median_agb, all = TRUE, by = "dbh_r")[order(stemID, year)]
+
 # recalculate dbh growth
-df_small[, Ddbh_small := c(diff(dbh)/diff(year), NA), .(stemID)]
+df_small[, Dagb_small := c(diff(agb_m)/diff(year), NA), .(stemID)]
+
 # substitute dbh growth with new values in original data frame
-df_small <- df_small[year==1985 & dbh < 5.5, c("stemID", "Ddbh_small")]
+df_small <- df_small[year==1985 & dbh < 5.5, c("stemID", "Dagb_small")]
 
 df_stem <- merge(df_stem, df_small, all.x = TRUE)
-df_stem[!is.na(Ddbh_small), Ddbh := Ddbh_small]
-df_stem[, Ddbh_small := NULL]
+df_stem[!is.na(Dagb_small), `:=`(Dagb = Dagb_small, Dagb_t = Dagb_small)]
+df_stem[, Dagb_small := NULL]
 ``` 
 
-Define size classes based on DBH
+#### Outlier substitution
+
+In cases where the change in DBH was $\leq$ -0.5 cm yr$^{-1}$ or $\geq$ 5 cm yr$^{-1}$, the corresponding AGB change was substituted with the expected value, calculated from DBH changes of all other stems in the same site and size class, as detailed below.
+
+DBH distribution of each diameter class $b$ was approximated with a normal distribution of mean $\mu_{b}$ and standard deviation $\sigma_{b}$ after transforming DBH values with the modulus function (with parameter $\lambda = 0.5$) to remove the skewness [see @Condit2017 and @Piponiot2021]. 
+
+We calculated the expected change in AGB for any given stem by integrating the AGB allometry with the expected DBH change distribution for the appropriate site and size class, given that stem’s initial DBH.
+
+The modulus function used to transform DBH changes is defined as:
+
+\begin{equation}
+mod(x) = \left\{
+\begin{array}{ll}
+x^{\lambda}\hspace{1cm} \text{ if }x \geq 0\\
+-(-x)^{\lambda}\text{ if }x <0
+\end{array}
+\right.
+(\#eq:modulus)
+\end{equation}
+
+The expected DBH change in site $s$ and diameter class $b$ change is then:
+
+\begin{equation}
+[E(dDBH)]_{s,b} = \int_{-\infty}^{+\infty} mod^{-1}(x)\cdot \varphi\left(\frac{x-\mu_{s,b}}{\sigma_{s,b}}\right)\cdot dx
+(\#eq:dbhchange)
+\end{equation}
+
+For each stem $i$ in site $s$ and diameter class $b$ with initial DBH $D_i$, we calculated the expected AGB change as
+
+\begin{equation}
+[E(dAGB)]_i = \int_{dmin}^{+\infty} \left(AGB(D_i+mod^{-1}(x))-AGB(D_i)\right) \cdot \frac{\varphi\left(\frac{x-\mu_{s,b}}{\sigma_{s,b}}\right)}{1-\Phi\left(\frac{x-\mu_{s,b}}{\sigma_{s,b}}\right)}\cdot dx
+(\#eq:Edagb)
+\end{equation}
+
+with $D_i+mod^{-1}(dmin) = 0$ $\Rightarrow$ $dmin = - D_i^\lambda$ (to avoid negative AGB values), $AGB$ is the allometric equation used in site $s$, and $\varphi$ and $\Phi$ are respectively the probability and cumulative density functions of the standard normal distribution.
+
+```{r}
+substitute_change = function(varD,  # dbh variation
+                             cut = c(-0.5, 5), # threshold of acceptable dbh change
+                             lambda = 0.5,
+                             value = "D", # output: either "D" (DBH change) or "AGB" (AGB change)
+                             D = NULL,   # when calculating expected AGB change, need to provide corresponding DBH
+                             WD = NULL,  # when calculating expected AGB change, need to provide corresponding wood gravity
+                             palms = NULL # logical: is the individual a palm?
+                             ) {
+  
+  # values to keep
+  keep_values <- which(varD > cut[1] & varD < cut[2] & !is.na(varD))
+  
+  # outliers
+  change_values <- which((varD <= cut[1] | varD >= cut[2]) & !is.na(varD))
+  
+  # distribution of modulus-transformed dbhs
+  transf_values <- modulus(varD[keep_values], lambda)
+  mu <- mean(transf_values)
+  sigma <- sd(transf_values)
+  
+  # expected value of dbh change
+  if (value == "D") {
+    diffModD <- function(x) modulus(x, 1 / lambda) * dnorm(x, mu, sigma)
+    varD[change_values] <- integrate(diffModD, -Inf, Inf)$value
+    return(varD)
+  }
+  
+  # expected value of agb change
+  if (value == "AGB") {
+    dAGB = agb_bci(dbh = D + varD, wsg = WD, palms) - 
+      agb_bci(dbh = D, wsg = WD, palms)
+    if (length(change_values) == 1) {
+      dAGB[change_values] <- ExpDiffAGB(
+        d = D[change_values],
+        wsg = WD[change_values],
+        lambda = lambda,
+        mu = mu,
+        sigma = sigma
+      )
+    } else if (length(change_values) > 1) {
+      dAGB[change_values] = apply(cbind(D, WD)[change_values, ], 1, function(x) {
+        ExpDiffAGB(
+          d = x[1],
+          wsg = x[2],
+          lambda = lambda,
+          mu = mu,
+          sigma = sigma
+        )
+      })
+    }
+    return(dAGB)
+  }
+}
+
+modulus <- function(d, lambda = 0.5) {
+  return(sign(d) * abs(d) ^ lambda)
+}
+
+ExpDiffAGB <- function(d, wsg, lambda, mu, sigma, palms = NULL) {
+  # AGB > 0 => d + modulus(x, 1/lambda) > 0 => x > -(d^lambda)
+  minVar <- -d ^ lambda
+  pdfdAGB <- function(x) {
+    dAGB = agb_bci(d + modulus(x, 1 / lambda), wsg, palms) - agb_bci(d, wsg, palms)
+    dens = truncnorm::dtruncnorm(x, mean = mu, sd = sigma, a = minVar)
+    return(dAGB * dens)
+  }
+  return(integrate(pdfdAGB, lower = minVar, upper = Inf)$value)
+}
+```
+
+
+Diameter classes were defined as follows: $[1,10]$, $(10,20]$, $(20,30]$, $(30,50]$, $(50,100]$, $(100,320]$ (in cm).
+
 ```{r}
 maxD <- ceiling(max(df_stem$dbh_ti, na.rm = TRUE))
 df_stem[, size := cut(dbh_t, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = TRUE)]
 ```
 
-#### Outlier substitution
+Outlier values of AGB changes (after the taper correction) were then substituted with the expected AGB change for the corresponding diameter class. 
 
-Change abnormal AGB changes
 ```{r}
-## change abnormal dbh changes, grouping by size
-df_stem[!is.na(Ddbh), `:=`(
-  Ddbh_ts = substitute_change(varD = Ddbh_t, cut = c(-0.5, 5)),
+## change abnormal agb changes, grouping by size
+df_stem[!is.na(Ddbh_t), `:=`(
   Dagb_ts = substitute_change(D = dbh_t, varD = Ddbh_t, WD = wsg, 
                               value = "AGB", cut = c(-0.5, 5))),
   size]
 ```
 
-
+xxx
 translate dbh values (or agb values) with substituted dbh or agb
 
 ```{r}
+cumsum_naomit <- function (x) cumsum(ifelse(is.na(x), 0, x)) + x*0
+
+resequence <- function (x, dx) {
+  if (any(!is.na(x))) {
+    # get the first non NA measurement (t0: position in the vector)
+    t0 <- which(!is.na(x)) [1]
+    # use only diff x measurements after this first measurement, and remove the
+    # last one that is always NA (by definition)
+    dx <- dx[t0:(length(dx)-1)]
+    # new values: same until t0, then add the cumulative sum of dx to the first
+    # non NA value
+    x <- c(x[1:t0], x[t0] + cumsum_naomit(dx))
+  } 
+  return(x)
+}
+```
+
+
+```{r}
 data.table::setorder(df_stem, year)
-df_stem[, dbh_ts := dbh_t[1] + c(0, cumsum_naomit(Ddbh_ts*dT)[-length(dT)]), .(stemID)]
+# df_stem[, dbh_ts := dbh_t[1] + c(0, cumsum_naomit(Ddbh_ts*dT)[-length(dT)]), .(stemID)]
 # df_stem[, agb_ts := agb_bci(dbh = dbh_ts, wd = wsg)]
 df_stem[, agb_ts := agb_t[1] + c(0, cumsum_naomit(Dagb_ts*dT)[-length(dT)]), .(stemID)]
 ```
