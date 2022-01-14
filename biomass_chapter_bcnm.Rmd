@@ -80,19 +80,19 @@ Estimating the biomass of an individual tree from allometric equations is not a 
 
 # create data table for illustrating different allometric equations at the
 # individual tree level
-dfallom <- data.table::data.table(expand.grid(dbh = 1:200, wd = c(0.4, 0.8)))
+dfallom <- data.table::data.table(expand.grid(dbh = 1:200, wsg = c(0.4, 0.8)))
 
 # Chave et al 2014 allometric equation, no height information
-dfallom[, chave14 := agb_bci(dbh = dbh, wd = wd, method = "chave14")]
+dfallom[, chave14 := agb_bci(dbh = dbh, wsg = wsg, method = "chave14")]
 
 # Chave et al 2014 allometric equation, tree height from Martinez Cano et al., 2019
-dfallom[, chave14_h := agb_bci(dbh = dbh, wd = wd, method = "chave14", use_height_allom = TRUE)]
+dfallom[, chave14_h := agb_bci(dbh = dbh, wsg = wsg, method = "chave14", use_height_allom = TRUE)]
 
 # Chave et al 2005 allometric equation, no height information
-dfallom[, chave05 := agb_bci(dbh = dbh, wd = wd, method = "chave05")]
+dfallom[, chave05 := agb_bci(dbh = dbh, wsg = wsg, method = "chave05")]
 
 # Chave et al 2005 allometric equation, tree height from Martinez Cano et al., 2019
-dfallom[, chave05_h := agb_bci(dbh = dbh, wd = wd, method = "chave05", use_height_allom = TRUE)]
+dfallom[, chave05_h := agb_bci(dbh = dbh, wsg = wsg, method = "chave05", use_height_allom = TRUE)]
 
 dfallom <- data.table::melt(dfallom, measure.vars = grep("chave", colnames(dfallom)), 
                             variable.name = "method", value.name = "agb")
@@ -109,7 +109,7 @@ fig1a_allom_ind <-
     x = dbh,
     y = agb,
     colour = method,
-    linetype = as.factor(wd)
+    linetype = as.factor(wsg)
   )) +
   geom_line() +
   theme_classic() + 
@@ -338,12 +338,11 @@ The 50 ha plot is not representative of the island of Barro Colorado, let alone 
 
 ```{r, fig4-spatial, fig.height = 8, fig.width = 12, fig.cap="Crown-distributed AGB (Mg/ha) and AWP (Mg/ha/yr) on the 50 ha plot, grouped by topographically-defined habitat [as defined by @Harms2001]. (a-b) Map of crown-distributed (a) AGB in the 2010 census and (b) AWP between the 2010 and 2015 censuses. Colors delineate the topographically defined habitats. (c-d) Mean (+/- standard errors of the means over 20 m quadrats) of (c) AGB and (d) AWP in each topographically defined habitat. The AGB and AWP of individual trees were distributed among 2x2m pixels in proportion to the area of intersection between the pixel and the tree crown [crown radius calculated according to @MartinezCano2019]. The AGB and AWP of the portions of tree crowns that lie outside the edges were mirror-transposed into the pixels inside the plot to avoid underestimation of AGB and AWP at the edges of the plot (see Supplementary material). Differences among topographically-defined habitats are consistent with results from @Chave2003."}
 
-load("data/data-main-script.rda")
 df_crown$agb[df_crown$agb>1000] <- 1000
 df_crown$awp[df_crown$awp>30] <- 30
 
 ## get bci habitats from Harms et al 2001
-load("data/bci_habitat.rda")
+load("bci_habitat.rda")
 # change name of habitat to match publication: first letter in upper case and add spaces
 levels(bci_habitat$habitat) <- paste0(toupper(substr(levels(bci_habitat$habitat), 1, 1)), 
                               substr(levels(bci_habitat$habitat), 2, nchar(levels(bci_habitat$habitat))))
@@ -439,10 +438,5 @@ legends <- ggpubr::ggarrange(legend1, legend2, legend3, nrow=3)
 
 ggpubr::ggarrange(gmap, legends, gbar, widths = c(4,1,2), ncol=3)
 ```
-
-# Supplementary material
-
-
-
 
 # References
