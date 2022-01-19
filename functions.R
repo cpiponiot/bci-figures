@@ -260,3 +260,41 @@ if (test) {
   
   summary(coords[area_i>0, area_i/area_i_sf])
 }
+
+agb_bci <- function(dbh,  # dbh, in cm
+                    wsg,  # wood specific gravity values 
+                    palms = NULL,  # logical: is the individual a palm?
+                    method = "chave14", 
+                    use_height_allom = FALSE) {
+  # with generic height allometry from Martinez Cano et al 2019
+  if (use_height_allom) {
+    # Chave et al 2005 - moist forests, with height (in Mg)
+    h <- 58.0 * dbh ^ 0.73 / (21.8 + dbh ^ 0.73)
+    if (method == "chave05") {
+      agb <- 0.0509 * wsg * dbh ^ 2 * h / 1000
+    }
+    if (method == "chave14") {
+      # Chave et al. 2014, equation 4 with the BIOMASS package 
+      agb <- (0.0673 * (wsg * h * dbh^2)^0.976)/1000
+    }
+  } else {
+    # without any height information
+    # Chave et al 2005 - moist forests, without height (in Mg)
+    if (method == "chave05") {
+      agb <- wsg * exp(-1.499 + 2.148 * log(dbh) + 
+                         0.207 * log(dbh) ^ 2 - 0.0281 * log(dbh) ^ 3) /1000
+    }
+    if (method == "chave14") {
+      # Chave et al. 2014, equation 7 with the BIOMASS package (transform into kg)
+      E <- 0.05176398
+      agb <- exp(-2.023977 - 0.89563505 * E + 0.92023559 * 
+                   log(wsg) + 2.79495823 * log(dbh) - 0.04606298 * (log(dbh)^2))/1000
+    }
+  }
+  
+  ## palm specific allometry
+  if (!is.null(palms))
+    agb[palms] <- 0.0417565 * dbh[palms] ^ 2.7483 /1000
+  
+  return(agb)
+}
