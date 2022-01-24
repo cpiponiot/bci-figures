@@ -112,7 +112,7 @@ df_stem[Family == "Arecaceae" & Genus != "Socratea", dbh := median(dbh, na.rm = 
 
 ### Using different allometric equations
 
-We tested two sets of allometries: the ones from @Chave2014 and from @Chave2005. For each set of allometry we used the equation with only DBH and wood specific gravity as explanatory variables, and the equation that includes height as well; in the latter case, we estimtaed height using the generic height allometry from @MartinezCano2019. For palms we used a generic palm allometry from @Goodman2013. 
+We tested two sets of allometries: the ones from @Chave2014 and from @Chave2005. For each set of allometry we used the equation with only DBH and wood specific gravity as explanatory variables, and the equation that includes height as well; in the latter case, we estimtaed height using the multi-species height allometry from @MartinezCano2019. For palms we used a multi-species palm allometry from @Goodman2013. 
 
 ```{r allometries}
 # estimate agb values at BCI with allometric equations from Chave et al. 2014
@@ -124,7 +124,7 @@ agb_bci <- function(dbh,  # dbh, in cm
                     palms = NULL,  # logical: is the individual a palm?
                     method = "chave14", 
                     use_height_allom = FALSE) {
-  # with generic height allometry from Martinez Cano et al 2019
+  # with multi-species height allometry from Martinez Cano et al 2019
   if (use_height_allom) {
     # Chave et al 2005 - moist forests, with height (in Mg)
     h <- 58.0 * dbh ^ 0.73 / (21.8 + dbh ^ 0.73)
@@ -190,7 +190,7 @@ df_stem[, chave05_h := agb_bci(dbh = dbh,
 
 ### Applying the taper correction
 
-The DBH of stems measured above 1.3 m was corrected for taper with the generic equation from @Cushman2014; the corrected DBH is stored in the `dbh_t`column and the corresponding aboveground biomass in the `agb_t`column. 
+The DBH of stems measured above 1.3 m was corrected for taper with the multi-species equation from @Cushman2014; the corrected DBH is stored in the `dbh_t`column and the corresponding aboveground biomass in the `agb_t`column. 
 
 ```{r}
 df_stem[, b := exp(-2.0205 - 0.5053 * log(dbh) + 0.3748 * log(hom))]
@@ -471,10 +471,10 @@ aggregate_agb_dyn <- function(group, # grouping factor
   
   if (kohyama) {
     # apply Kohyama correction 
-  # > need to estimate mortality
-  df[order(year), `:=` (dT = c(diff(year), NA), 
-                        awm = awp - c(diff(agb)/diff(year), NA)), .(group)]
-  df[, awp := kohyama_correction(agb, awp, awm, dT)]
+    # > need to estimate mortality
+    df[order(year), `:=` (dT = c(diff(year), NA), 
+                          awm = awp - c(diff(agb)/diff(year), NA)), .(group)]
+    df[, awp := kohyama_correction(agb, awp, awm, dT)]
   }
   
   # mean across all years
@@ -496,7 +496,7 @@ We first estimated the plot-level annual AGB and AWP for each method used.
 ```{r by-methods}
 df_plot <- subset(aggregate_agb_dyn("method", 50, long = TRUE, kohyama = FALSE), !is.na(value))
 df_plot_kohyama <- subset(aggregate_agb_dyn("method", 50, long = TRUE), 
-                   variable=="awp" & !is.na(value))
+                          variable=="awp" & !is.na(value))
 df_plot_kohyama[, method := paste0(method, "+kohyama")]
 
 df_plot <- rbind(df_plot, df_plot_kohyama)
@@ -555,139 +555,160 @@ df_pft <- aggregate_agb_dyn("PFT", 50, agg_years = TRUE)
 ``` 
 
 
-<!-- ## calculate crown distributed agb and awp -->
+## calculate crown distributed agb and awp
 
-<!-- ```{r} -->
-<!-- # area of the intersection of a circle and a rectangle #### -->
-<!-- # adapted from https://stackoverflow.com/questions/622287/area-of-intersection-between-circle-and-rectangle -->
-<!-- # integral calculated with www.wolframalpha.com -->
+We define a function that distributes the aboveground biomass and woody productivity of all trees across their crown. It takes the radius of crown and the height of pixels (both in m) as inputs. xxx
 
-<!-- # param x0  lower -->
-<!-- # param x1  -->
 
-<!-- # returns the positive root of intersection of line y = h with circle centered at the origin and radius r -->
-<!-- section <- function(h, r = 1)  -->
-<!-- { -->
-<!--   # assert(r >= 0); # assume r is positive, leads to some simplifications in the formula below (can factor out r from the square root) -->
-<!--   return(ifelse(h < r, sqrt(r * r - h * h), 0)) # http:#www.wolframalpha.com/input/?i=r+*+sin%28acos%28x+%2F+r%29%29+%3D+h -->
-<!-- } -->
 
-<!-- # indefinite integral of circle segment -->
-<!-- g <- function(x, h, r = 1)  -->
-<!-- { -->
-<!--   return(.5 * (sqrt(1 - x * x / (r * r)) * x * r + r * r * asin(x / r) - 2 * h * x)) # http:#www.wolframalpha.com/input/?i=r+*+sin%28acos%28x+%2F+r%29%29+-+h -->
-<!-- } -->
 
-<!-- # area of intersection of an infinitely tall box with left edge at x0, right edge at x1, bottom edge at h and top edge at infinity, with circle centered at the origin with radius r -->
-<!-- area_inf <- function(x0, x1, h, r)  -->
-<!-- { -->
-<!--   if (x0 > x1) -->
-<!--     seqinr::swap(x0, x1) # this must be sorted otherwise we get negative area -->
+```{r area-inter-circle-square}
+# area of the intersection of a circle and a rectangle ####
+# adapted from https://stackoverflow.com/questions/622287/area-of-intersection-between-circle-and-rectangle
 
-<!--   s <- section(h, r) -->
-<!--   return(g(max(-s, min(s, x1)), h, r) - g(max(-s, min(s, x0)), h, r)) # integrate the area -->
-<!-- } -->
+# returns the positive root of intersection of line y = h with circle centered at the origin and radius r
+section <- function(h, r = 1)
+{
+  # assert(r >= 0); # assume r is positive, leads to some simplifications in the formula below (can factor out r from the square root)
+  return(ifelse(h < r, sqrt(r * r - h * h), 0)) # http:#www.wolframalpha.com/input/?i=r+*+sin%28acos%28x+%2F+r%29%29+%3D+h
+}
 
-<!-- # area of the intersection of a finite box with a circle centered at the origin with radius r -->
-<!-- area_fin <- function(x0, x1, y0, y1, r)  -->
-<!-- { -->
-<!--   if (y0 > y1) -->
-<!--     seqinr::swap(y0, y1) -->
+# indefinite integral of circle segment
+g <- function(x, h, r = 1)
+{
+  return(.5 * (sqrt(1 - x * x / (r * r)) * x * r + r * r * asin(x / r) - 2 * h * x)) # http:#www.wolframalpha.com/input/?i=r+*+sin%28acos%28x+%2F+r%29%29+-+h
+}
 
-<!--   if (y0 >= 0) { -->
-<!--     # y1 > y0 >=0 -->
-<!--     return(area_inf(x0, x1, y0, r) - area_inf(x0, x1, y1, r)) # area of the lower box minus area of the higher box -->
+# area of intersection of an infinitely tall box with left edge at x0, right edge at x1, bottom edge at h and top edge at infinity, with circle centered at the origin with radius r
+area_inf <- function(x0, x1, h, r)
+{
+  if (x0 > x1)
+    seqinr::swap(x0, x1) # this must be sorted otherwise we get negative area
+  
+  s <- section(h, r)
+  return(g(max(-s, min(s, x1)), h, r) - g(max(-s, min(s, x0)), h, r)) # integrate the area
+}
 
-<!--   } else { -->
-<!--     if (y1 < 0) { -->
-<!--       # the box is completely under, just flip it above (opposite y coordinates) -->
-<!--       return(area_inf(x0, x1, -y1, r) - area_inf(x0, x1, -y0, r)) -->
-<!--     } else # the box is both above and below, divide it to two boxes  -->
-<!--       return(area_inf(x0, x1, 0, r) - area_inf(x0, x1, -y0, r) +  -->
-<!--                area_inf(x0, x1, 0, r) - area_inf(x0, x1, y1, r)) -->
-<!--   }   -->
-<!-- } -->
+# area of the intersection of a square (lower corner coordinates: (x0, y0) and
+# height h) with a circle of center cx, cy and radius r
 
-<!-- # area of the intersection of a general box with a general circle -->
-<!-- area_circle_rect <- function(x0, x1, y0, y1, cx, cy, r)  -->
-<!-- { -->
-<!--   x0 <- x0 - cx; x1 <- x1 - cx; -->
-<!--   y0 <- y0 - cy; y1 <- y1 - cy; -->
-<!--   # get rid of the circle center -->
+area_circle_square <- function(x0, y0, h, cx, cy, r)
+{
+  # translate square to have the equivalent of a centered circle
+  x1 <- (x0 + h) - cx; x0 <- x0 - cx; 
+  y1 <- (y0 + h) - cy; y0 <- y0 - cy;
+  
+  # area of the intersection of a finite box with a circle centered at the origin with radius r
+  if (y0 > y1)
+    seqinr::swap(y0, y1)
+  
+  if (y0 >= 0) {
+    # y1 > y0 >=0
+    return(area_inf(x0, x1, y0, r) - area_inf(x0, x1, y1, r)) # area of the lower box minus area of the higher box
+    
+  } else {
+    if (y1 < 0) {
+      # the box is completely under, just flip it above (opposite y coordinates)
+      return(area_inf(x0, x1, -y1, r) - area_inf(x0, x1, -y0, r))
+    } else # the box is both above and below, divide it to two boxes
+      return(area_inf(x0, x1, 0, r) - area_inf(x0, x1, -y0, r) +
+               area_inf(x0, x1, 0, r) - area_inf(x0, x1, y1, r))
+  }
+}
 
-<!--   return(area_fin(x0, x1, y0, y1, r)) -->
-<!-- } -->
-<!-- ``` -->
+```
 
-<!-- set arguments -->
-<!-- ```{r} -->
-<!-- hpix <- 2 # size of pixel, in m -->
-<!-- yr <- 2010 -->
-<!-- ``` -->
 
-<!-- crown allometry from Martinez Cano et al 2019 -->
-<!-- ```{r} -->
-<!-- dftemp <- df_stem[year==yr, c("stemID", "dbh_t", "gx", "gy", "agb_t", "Dagb_ts")] -->
-<!-- dftemp[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ] -->
-<!-- dftemp[, dbh_t := NULL] -->
-<!-- ``` -->
+set arguments
 
-<!-- edges -->
+some trees' crowns will fall outside the plot, etc
 
-<!-- ```{r} -->
-<!-- # left side: -->
-<!-- xmin <- floor(dftemp[gx - rcrown < 0, min(gx - rcrown)]/hpix)*hpix -->
-<!-- # right side: -->
-<!-- xmax <- 1000 - floor(dftemp[1000-gx - rcrown < 0, min(1000 - gx - rcrown)]/hpix)*hpix -->
-<!-- # bottom: -->
-<!-- ymin <- floor(dftemp[gy - rcrown < 0, min(gy - rcrown)]/hpix)*hpix -->
-<!-- # top: -->
-<!-- ymax <- 500 - floor(dftemp[500-gy - rcrown < 0, min(500 - gy - rcrown)]/hpix)*hpix -->
-<!-- ``` -->
+```{r}
+# get crown distributed aboveground biomass density
+# create pixel grid
+dist_crowns <- function(hpix, # height of pixels in m
+                        gx, gy, # position of trees in the plot, in m
+                        rcrown, # radius of tree crowns
+                        values # list of value vectors to be distributed (eg AGB)
+) {
+  
+  if (!is.list(values) | any(lapply(values, length) != length(gx)))
+    stop("`values` should be a list of vectors, each the length of gx, gy and rcrown.")
+  
+  # define grid limits, including all pixels in which a tree crown falls
+  xmin <- floor(min(gx - rcrown) / hpix) * hpix
+  xmax <- ceiling(max(gx + rcrown) / hpix) * hpix
+  ymin <- floor(min(gy - rcrown) / hpix) * hpix
+  ymax <- ceiling(max(gy + rcrown) / hpix) * hpix
+  
+  # create grid
+  grid <- expand.grid(x = seq(xmin, xmax - hpix, by = hpix) + (hpix/2),
+                      y = seq(ymin, ymax-hpix, by = hpix) + (hpix/2))
+  data.table::setDT(grid)
+  # give each pixel a unique identifier
+  grid$pixID <- 1:nrow(grid)
+  
+  # for each pixel, select trees that could be in it (distance between the
+  # center of the pixel and the tree is less than the radius of the crown + the
+  # distance between the center of the pixel and its corners = sqrt(2)/2*hpix)
+  
+  dfpix <-
+    grid[, .(stems = which(sqrt((x - gx) ^ 2 + (y - gy) ^ 2) < rcrown + sqrt(2) / 2 * hpix)), .(pixID, x, y)]
+  
+  dfpix$rcrown <- rcrown[dfpix$stems]
+  dfpix$gx <- gx[dfpix$stems]
+  dfpix$gy <- gy[dfpix$stems]
+  
+  dfpix[, parea := area_circle_rect(x - hpix / 2, x + hpix / 2, y - hpix / 2, y +
+                                      hpix / 2, gx, gy, rcrown)/(rcrown^2*pi), .(stems, pixID)]
+  
+  
+  # mirror pixels outside the plot back inside the plot
+  
+  dfpix[, `:=`(x = abs(1000-abs(1000-x)), y = abs(500-abs(500-y)))]
+  
+  # aggregate values per pixel
+  
+  dfdist <- unique(dfpix[, c("x", "y")])
+  
+  for (i in length(values)) {
+    dfpix$value <- values[[i]][dfpix$stems]
 
-<!-- get crown distributed aboveground biomass density -->
-<!-- create pixel grid -->
+    dfdisti <- 
+      dfpix[, .(value = sum(parea * value, na.rm = TRUE) / (hpix / 100) ^ 2), 
+          .(x, y)]
+    colnames(dfdisti)[3] <- paste0("value", i)
+      
+    dfdist <- merge(dfdist, dfdisti, by = c("x", "y"))
+  }
+  
+  return(dfdist)
+}
 
-<!-- need to mirror crowns that are partly outside the plot > extend the grid by -->
-<!-- the largest crown in each side -->
-<!-- ```{r} -->
-<!-- grid <- expand.grid(x = seq(xmin, xmax - hpix, by = hpix) + (hpix/2), -->
-<!--                     y = seq(ymin, ymax-hpix, by = hpix) + (hpix/2)) -->
-<!-- data.table::setDT(grid) -->
-<!-- ``` -->
+```
 
-<!-- give each pixel a unique identifier -->
-<!-- ```{r} -->
-<!-- grid$pixID <- 1:nrow(grid) -->
-<!-- ``` -->
+The radius of the crown is calculated based on the multi-species
+crown allometry from Martinez Cano et al 2019
+```{r}
+dftemp <- df_stem[year==2010, c("stemID", "dbh_t", "gx", "gy", "agb_t", "Dagb_ts")]
+dftemp[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ]
+dftemp[, dbh_t := NULL]
 
-<!-- for each pixel, select trees that could be in it (distance between the center of the pixel and the tree is less than the radius of the crown + the distance between the center of the pixel and its corners = sqrt(2)/2*hpix) could probably be more efficient -->
-<!-- ```{r} -->
-<!-- dfpix <- grid[, .(stemID = subset(dftemp, sqrt((x - gx) ^ 2 + (y - gy) ^ 2) < rcrown + sqrt(2) / -->
-<!--                                     2 * hpix)$stemID), .(pixID, x, y)] -->
+df_crown <- dist_crowns(hpix = 2, 
+                        gx = dftemp$gx, 
+                        gy = dftemp$gy, 
+                        rcrown = dftemp$rcrown, 
+                        values = list(dftemp$agb_t, dftemp$Dagb_ts))
+colnames(df_crown)[3:4] <- c("agb", "awp")
+```
 
-<!-- dfpix <- merge(dfpix, dftemp, by = "stemID") -->
 
-<!-- dfpix[, parea := area_circle_rect(x - hpix / 2, x + hpix / 2, y - hpix / 2, y + -->
-<!--                                     hpix / 2, gx, gy, rcrown)/(rcrown^2*pi), .(stemID, pixID)] -->
-<!-- ``` -->
 
-<!-- mirror pixels outside the plot back inside the plot -->
-<!-- ```{r} -->
-<!-- dfpix[, `:=`(x = abs(1000-abs(1000-x)), y = abs(500-abs(500-y)))] -->
-<!-- ``` -->
+```{r}
+df_ind <- subset(df_stem, stemID %in% c(2031, 3671, 1428))
+```
 
-<!-- aggregate values per pixel -->
-<!-- ```{r} -->
-<!-- df_crown <- dfpix[, .(agb = sum(parea*agb_t)/(hpix/100)^2, -->
-<!--                       awp = sum(parea*Dagb_ts, na.rm = TRUE)/(hpix/100)^2), .(pixID, x, y)] -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- df_ind <- subset(df_stem, stemID %in% c(2031, 3671, 1428)) -->
-<!-- ``` -->
-
-<!-- ## save results -->
-<!-- ```{r} -->
-<!-- save(df_plot, df_size, df_pft, df_ind, df_crown, file = "cache.rda") -->
-<!-- ``` -->
+## save results
+```{r}
+save(df_plot, df_size, df_pft, df_ind, df_crown, file = "cache.rda")
+```
