@@ -1,5 +1,5 @@
 ---
-title: "Supplementary material - Woody Biomass Stocks and Fluxes in the BCNM from Plot Data"
+title: "Supplementary material - Woody Biomass Stocks and Fluxes in the Barro Colorado Island 50 ha Plot"
 author:
   - Camille Piponiot:
       email: camille.piponiot-laroche@cirad.fr
@@ -12,12 +12,11 @@ institute:
   - stri: Forest Global Earth Observatory, Smithsonian Tropical Research Institute, Apartado Postal 0843-03092, Panamá, Republic of Panamá
 
 output: 
-  bookdown::word_document2:
+  html_document:
+    code_folding: hide
     pandoc_args:
       - '--lua-filter=common/scholarly-metadata.lua'
       - '--lua-filter=common/author-info-blocks.lua'
-    reference_docx: common/word-styles-ref-01.docx
-  fig_caption: yes
 bibliography: references.bib
 csl: common/new-phytologist.csl
 ---
@@ -30,7 +29,7 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, results = "hide
 
 ## Get census data ready
 
-Census data was downloaded from an online Dryad repository [@Condit2019]. Census data contain 8 censuses of the Barro Colorado 50-ha plot, from 1981 to 2015, of all stems from 1 cm of diameter at breast height (`dbh`); starting in 1985, buttressed stems were measured above stem irregularities and their height of measurement was recorded (`hom`). xxx more info
+Census data was downloaded from an online Dryad repository [@Condit2019]. Census data contain 8 censuses of the Barro Colorado 50-ha plot, from 1981 to 2015, of all stems from 1 cm of diameter at breast height (`dbh`).
 
 ```{r download-bci-data}
 dryad_data_path <- rdryad::dryad_download("10.15146/5xcp-0d46")
@@ -62,7 +61,7 @@ names(census_list) <- data.table::tstrsplit(bci_stem, "\\.")[[2]]
 df_stem <- data.table::rbindlist(census_list, fill = TRUE, idcol = "censusID")
 ```
 
-Each individual stem was identified to the lowest taxonomic level possible (xx% genus; xx% species; xx% subspecies) and was given a species code (`sp`). An independent species table (`bci.spptable`) contains all the taxonomic detail for each species code (species Latin name, family, subspecies when relevant, wood specific gravity).
+Each individual stem was identified to the lowest taxonomic level possible (100% genus; 98% species; 3% subspecies) and was given a species code (`sp`). An independent species table (`bci.spptable`) contains all the taxonomic detail for each species code (species Latin name, family, subspecies when relevant, wood specific gravity).
 
 ```{r add-species-info}
 load(grep("spp", dryad_data_path$`10.15146/5xcp-0d46`, value = TRUE))
@@ -190,9 +189,9 @@ df_stem[, chave05_h := agb_bci(dbh = dbh,
 
 ### Applying the taper correction
 
-The DBH of stems measured above 1.3 m was corrected for taper with the multi-species equation from @Cushman2014; the corrected DBH is stored in the `dbh_t`column and the corresponding aboveground biomass in the `agb_t`column. 
+The DBH of stems measured above 1.3 m was corrected for taper with the multi-species equation from @Cushman2014; the corrected DBH is stored in the `dbh_t` column and the corresponding aboveground biomass in the `agb_t` column. 
 
-```{r}
+```{r taper-correction}
 df_stem[, b := exp(-2.0205 - 0.5053 * log(dbh) + 0.3748 * log(hom))]
 df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
 df_stem[, agb_t := agb_bci(dbh = dbh_t, wsg = wsg, palms = (Family == "Arecaceae"))]
@@ -215,7 +214,7 @@ df_stem[, agb_t := agb_bci(dbh = dbh_t, wsg = wsg, palms = (Family == "Arecaceae
 
 Individual trees AGB growth (in Mg/yr) was estimated as the difference in AGB divided by the time interval between two measurements. This was done for both the original data and the taper corrected data.
 
-```{r growth}
+```{r estimate-dbh-growth}
 # order df_stem by treeID, stemID and year
 data.table::setorder(df_stem, treeID, stemID, year)
 
@@ -236,7 +235,7 @@ df_stem[, Dagb_t := c(diff(agb_t)/diff(year), NA), .(stemID)]
 Small stems were rounded down to the nearest 5 mm in the 1985 census: this can potentially create biases when estimating AGB growth between the 1985 and 1990 censuses. To avoid this bias we 
 substituted AGB values of trees DBH < 5.5 cm in 1985 and 1990, with mean AGB values measured in 1990 for each rounding class size groups. We then recalculated AGB growth between those two censuses with the substituted AGB values. 
 
-```{r}
+```{r correct-initial-small-stem-growth}
 small_stems <- df_stem[year == 1985 & dbh < 5.5, unique(stemID)]
 df_small <- subset(df_stem, stemID %in% small_stems)
 
@@ -277,26 +276,23 @@ x^{\lambda}\hspace{1cm} \text{ if }x \geq 0\\
 -(-x)^{\lambda}\text{ if }x <0
 \end{array}
 \right.
-(\#eq:modulus)
 \end{equation}
 
 The expected DBH change in site $s$ and diameter class $b$ change is then:
 
 \begin{equation}
 [E(dDBH)]_{s,b} = \int_{-\infty}^{+\infty} mod^{-1}(x)\cdot \varphi\left(\frac{x-\mu_{s,b}}{\sigma_{s,b}}\right)\cdot dx
-(\#eq:dbhchange)
 \end{equation}
 
 For each stem $i$ in site $s$ and diameter class $b$ with initial DBH $D_i$, we calculated the expected AGB change as
 
 \begin{equation}
 [E(dAGB)]_i = \int_{dmin}^{+\infty} \left(AGB(D_i+mod^{-1}(x))-AGB(D_i)\right) \cdot \frac{\varphi\left(\frac{x-\mu_{s,b}}{\sigma_{s,b}}\right)}{1-\Phi\left(\frac{x-\mu_{s,b}}{\sigma_{s,b}}\right)}\cdot dx
-(\#eq:Edagb)
 \end{equation}
 
 with $D_i+mod^{-1}(dmin) = 0$ $\Rightarrow$ $dmin = - D_i^\lambda$ (to avoid negative AGB values), $AGB$ is the allometric equation used in site $s$, and $\varphi$ and $\Phi$ are respectively the probability and cumulative density functions of the standard normal distribution.
 
-```{r}
+```{r function-outlier-substitution}
 substitute_change = function(varD,  # dbh variation (cm/yr)
                              dT,    # time interval between two censuses
                              cut = c(-0.5, 5), # threshold of acceptable dbh change
@@ -371,14 +367,14 @@ ExpDiffAGB <- function(d, wsg, lambda, mu, sigma, palms = NULL) {
 
 Diameter classes were defined as follows: $[1,10]$, $(10,20]$, $(20,30]$, $(30,50]$, $(50,100]$, $(100,320]$ (in cm).
 
-```{r}
+```{r create-size-classes}
 maxD <- ceiling(max(df_stem$dbh_t, na.rm = TRUE))
 df_stem[, size := cut(dbh_t, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = TRUE)]
 ```
 
 Outlier values of AGB changes (after the taper correction) were then substituted with the expected AGB change for the corresponding diameter class. 
 
-```{r}
+```{r outlier-substitution}
 ## change abnormal agb changes, grouping by size
 df_stem[!is.na(Ddbh_t), `:=`(
   Dagb_ts = substitute_change(D = dbh_t, dT = dT,
@@ -388,7 +384,7 @@ df_stem[!is.na(Ddbh_t), `:=`(
   size]
 ```
 
-AGB is then reconstructed from outlier-substituted AGB change, taking the last AGB estimate as a reference. Prior AGB values are estimated by substracting the cumulative AGB changes between a given year and the last measurement to the last AGB values. This could also be done by taking any other measurement as a reference (e.g. the first one) and reconstructing AGb values based on substituted AGB changes. Reconstructing AGB values allows for values of AGB that are consistent with corrected AGB change values; however this method is prone to systematic bias and we do not recommend using it.  
+AGB is then reconstructed from outlier-substituted AGB change, taking the last AGB estimate as a reference. Prior AGB values are estimated by subtracting the cumulative AGB changes between a given year and the last measurement to the last AGB values. This could also be done by taking any other measurement as a reference (e.g. the first one) and reconstructing AGB values based on substituted AGB changes. Reconstructing AGB values allows for values of AGB that are consistent with corrected AGB change values; however this method is prone to systematic bias and we do not recommend using it.  
 
 ```{r function-outlier-subs-corr-agb}
 reconstruct <- function(x, # variable (must be ordered by increasing year)
@@ -406,7 +402,7 @@ data.table::setorder(df_stem, year)
 df_stem[, agb_ts := reconstruct(agb_t, Dagb_ts*dT, length(dT)), .(stemID)]
 ```
 
-```{r ex-outlier-subs-corr-agb}
+```{r ex-outlier-subs-corr-agb, echo = FALSE, fig.cap = "Example of a stem (stemID: 134) with excessive DBH growth. The original (black points) and outlier-corrected (red points) AGB are shown on the y-axis."}
 dfcorr <- subset(df_stem, stemID==134)
 plot(x = dfcorr$year, y = dfcorr$agb_ts, col = 2, pch = 16, 
      xlab = "Year", ylab = "AGB (Mg)", main = "StemID = 134", 
@@ -455,7 +451,7 @@ kohyama_correction <- function(stock, gain, loss, dT, output = "prod") {
 
 Below is a function that aggregates AGB and AWP values according to a grouping factor, and applies the ○correction from @Kohyama2019. 
 
-```{r aggregate-agb-dyn-function}
+```{r aggr-agb-dyn-function}
 aggregate_agb_dyn <- function(group, # grouping factor
                               area,  # unit area
                               kohyama = TRUE, # apply the Kohyama et al 2019 correction?
@@ -493,7 +489,7 @@ aggregate_agb_dyn <- function(group, # grouping factor
 
 We first estimated the plot-level annual AGB and AWP for each method used. 
 
-```{r by-methods}
+```{r aagr-by-methods}
 df_plot <- subset(aggregate_agb_dyn("method", 50, long = TRUE, kohyama = FALSE), !is.na(value))
 df_plot_kohyama <- subset(aggregate_agb_dyn("method", 50, long = TRUE), 
                           variable=="awp" & !is.na(value))
@@ -502,9 +498,9 @@ df_plot_kohyama[, method := paste0(method, "+kohyama")]
 df_plot <- rbind(df_plot, df_plot_kohyama)
 ```
 
-For all other aggregated AGB data, we used taper corrected DBHs, the @Chave2014 allometric equation (without height), and applied outlier substitution for AWP but not AGB.   
+For all other aggregated AGB data, we used taper-corrected DBHs, the @Chave2014 allometric equation (without height), and applied outlier substitution for AWP but not AGB.   
 
-```{r}
+```{r subset-corrections}
 df_stem_melt <- subset(df_stem_melt,
                        (method == "chave14+taper+subs" & variable == "awp") |
                          (method == "chave14+taper" & variable == "agb")
@@ -513,13 +509,13 @@ df_stem_melt <- subset(df_stem_melt,
 
 We also calculated the mean AGB and AWP by size class over all years. 
 
-```{r}
+```{r aggr-by-size}
 df_size <- aggregate_agb_dyn(group = "size", area = 50, agg_years = TRUE)
 ```
 
 To group species into functional groups we used plant functional types as described in @Ruger2020. The data was downloaded from their supplementary material. 
 
-```{r}
+```{r get-ruger-data}
 if (!file.exists("ruger_data_s1.xlsx"))
   utils::download.file(url = "https://www.science.org/doi/suppl/10.1126/science.aaz4797/suppl_file/aaz4797_ruger_data_s1.xlsx", 
                        destfile = "ruger_data_s1.xlsx")
@@ -540,7 +536,7 @@ ruger_data <- merge(ruger_data, ruger_levels)
 
 *Swartzia simplex* has two subspecies but only one is represented in the data from @Ruger2020. We gave both subspecies the same plant functional type. 
 
-```{r}
+```{r change-swartzia}
 swartzia2 <- subset(ruger_data, Genus=="Swartzia")
 swartzia2$sp <- "swars2"
 ruger_data <- rbind(ruger_data, swartzia2)
@@ -548,167 +544,160 @@ ruger_data <- rbind(ruger_data, swartzia2)
 
 Species plant functional types were then added to the census data, and we calculated the  mean of AGB and AWP across censuses by plant functional type. 
 
-```{r}
+```{r aggr-by-pft}
 df_stem_melt <- merge(df_stem_melt, ruger_data[, c("sp", "PFT")], by = "sp", all.x = TRUE)
 
 df_pft <- aggregate_agb_dyn("PFT", 50, agg_years = TRUE)
 ``` 
 
 
-## calculate crown distributed agb and awp
+## Crown-distributed AGB and AWP
 
-We define a function that distributes the aboveground biomass and woody productivity of all trees across their crown. It takes the radius of crown and the height of pixels (both in m) as inputs. xxx
-
-
+We defined a function (`dist_crowns`) that distributes the aboveground biomass and woody productivity of all trees over their entire crown. The radius of the crown is calculated based on the multi-species crown allometry from @MartinezCano2019. The function first creates a grid of pixels of a given width (here set to 2m) over the entire plot. In order to avoid underestimating the AGB and AWP, the grid also includes pixels outside the plot boundaries where the crowns of trees from within the plot fall. The AGB and AWP of each pixel are then calculated as the sum of the taper-corrected AGB (or taper- and outlier-corrected AWP) of each tree multiplied by the proportion of the tree's crown that is within the pixel. The AGB and AWP of the pixels outside the plot boundaries are then mirrored back into the plot by adding them to the opposite pixels inside the plot boundaries.
 
 
-```{r area-inter-circle-square}
+```{r dist-crowns}
+# get crown distributed aboveground biomass density
+dist_crowns <- function(wpix, # height of pixels in m
+                        gx, gy, # position of trees in the plot, in m
+                        rcrown, # radius of tree crowns
+                        values # list of value vectors to be distributed (eg AGB)
+) {
+
+  if (!is.list(values) | any(lapply(values, length) != length(gx)))
+    stop("`values` should be a list of vectors, each the length of gx, gy and rcrown.")
+
+  # define grid limits, including all pixels in which a tree crown falls
+  xmin <- floor(min(gx - rcrown) / wpix) * wpix
+  xmax <- ceiling(max(gx + rcrown) / wpix) * wpix
+  ymin <- floor(min(gy - rcrown) / wpix) * wpix
+  ymax <- ceiling(max(gy + rcrown) / wpix) * wpix
+
+  # create grid
+  grid <- expand.grid(x = seq(xmin, xmax - wpix, by = wpix) + (wpix/2),
+                      y = seq(ymin, ymax-wpix, by = wpix) + (wpix/2))
+  data.table::setDT(grid)
+  # give each pixel a unique identifier
+  grid$pixID <- 1:nrow(grid)
+
+  # for each pixel, select trees that could be in it (distance between the
+  # center of the pixel and the tree is less than the radius of the crown + the
+  # distance between the center of the pixel and its corners = sqrt(2)/2*wpix)
+
+  dfpix <-
+    grid[, .(stems = which(sqrt((x - gx) ^ 2 + (y - gy) ^ 2) < rcrown + sqrt(2) / 2 * wpix)), .(pixID, x, y)]
+
+  dfpix$rcrown <- rcrown[dfpix$stems]
+  dfpix$gx <- gx[dfpix$stems]
+  dfpix$gy <- gy[dfpix$stems]
+
+  dfpix[, parea := area_circle_square(x - wpix / 2, y - wpix / 2, wpix, gx, gy, rcrown) /
+          (rcrown ^ 2 * pi), .(stems, pixID)]
+
+
+  # mirror pixels outside the plot back inside the plot
+
+  dfpix[, `:=`(x = abs(1000-abs(1000-x)), y = abs(500-abs(500-y)))]
+
+  # aggregate values per pixel
+
+  dfdist <- unique(dfpix[, c("x", "y")])
+
+  for (i in 1:length(values)) {
+    dfpix$value <- values[[i]][dfpix$stems]
+
+    dfdisti <-
+      dfpix[, .(value = sum(parea * value, na.rm = TRUE) / (wpix / 100) ^ 2),
+          .(x, y)]
+    colnames(dfdisti)[3] <- paste0("value", i)
+
+    dfdist <- merge(dfdist, dfdisti, by = c("x", "y"))
+  }
+
+  return(dfdist)
+}
+
+
 # area of the intersection of a circle and a rectangle ####
-# adapted from https://stackoverflow.com/questions/622287/area-of-intersection-between-circle-and-rectangle
 
-# returns the positive root of intersection of line y = h with circle centered at the origin and radius r
+# returns the positive root of intersection of line y = h with circle centered
+# at the origin and radius r
 section <- function(h, r = 1)
 {
-  # assert(r >= 0); # assume r is positive, leads to some simplifications in the formula below (can factor out r from the square root)
-  return(ifelse(h < r, sqrt(r * r - h * h), 0)) # http:#www.wolframalpha.com/input/?i=r+*+sin%28acos%28x+%2F+r%29%29+%3D+h
+  # assert(r >= 0); # assume r is positive, leads to some simplifications in the
+  # formula below (can factor out r from the square root)
+  return(ifelse(h < r, sqrt(r * r - h * h), 0))
 }
 
 # indefinite integral of circle segment
 g <- function(x, h, r = 1)
 {
-  return(.5 * (sqrt(1 - x * x / (r * r)) * x * r + r * r * asin(x / r) - 2 * h * x)) # http:#www.wolframalpha.com/input/?i=r+*+sin%28acos%28x+%2F+r%29%29+-+h
+  return(.5 * (sqrt(1 - x * x / (r * r)) * x * r + r * r * asin(x / r) - 2 * h * x))
 }
 
-# area of intersection of an infinitely tall box with left edge at x0, right edge at x1, bottom edge at h and top edge at infinity, with circle centered at the origin with radius r
+# area of intersection of an infinitely tall box with left edge at x0, right
+# edge at x1, bottom edge at h and top edge at infinity, with circle centered at
+# the origin with radius r
 area_inf <- function(x0, x1, h, r)
 {
   if (x0 > x1)
     seqinr::swap(x0, x1) # this must be sorted otherwise we get negative area
-  
+
   s <- section(h, r)
-  return(g(max(-s, min(s, x1)), h, r) - g(max(-s, min(s, x0)), h, r)) # integrate the area
+  # integrate the area
+  return(g(max(-s, min(s, x1)), h, r) - g(max(-s, min(s, x0)), h, r))
 }
 
 # area of the intersection of a square (lower corner coordinates: (x0, y0) and
-# height h) with a circle of center cx, cy and radius r
+# width w) with a circle of center cx, cy and radius r
 
-area_circle_square <- function(x0, y0, h, cx, cy, r)
+area_circle_square <- function(x0, y0, w, cx, cy, r)
 {
   # translate square to have the equivalent of a centered circle
-  x1 <- (x0 + h) - cx; x0 <- x0 - cx; 
-  y1 <- (y0 + h) - cy; y0 <- y0 - cy;
-  
+  x1 <- (x0 + w) - cx; x0 <- x0 - cx;
+  y1 <- (y0 + w) - cy; y0 <- y0 - cy;
+
   # area of the intersection of a finite box with a circle centered at the origin with radius r
   if (y0 > y1)
     seqinr::swap(y0, y1)
-  
+
   if (y0 >= 0) {
     # y1 > y0 >=0
-    return(area_inf(x0, x1, y0, r) - area_inf(x0, x1, y1, r)) # area of the lower box minus area of the higher box
-    
+
+    # area of the lower box minus area of the higher box:
+    return(area_inf(x0, x1, y0, r) - area_inf(x0, x1, y1, r))
+
   } else {
     if (y1 < 0) {
+
       # the box is completely under, just flip it above (opposite y coordinates)
       return(area_inf(x0, x1, -y1, r) - area_inf(x0, x1, -y0, r))
+
     } else # the box is both above and below, divide it to two boxes
       return(area_inf(x0, x1, 0, r) - area_inf(x0, x1, -y0, r) +
                area_inf(x0, x1, 0, r) - area_inf(x0, x1, y1, r))
   }
 }
 
-```
-
-
-set arguments
-
-some trees' crowns will fall outside the plot, etc
-
-```{r}
-# get crown distributed aboveground biomass density
-# create pixel grid
-dist_crowns <- function(hpix, # height of pixels in m
-                        gx, gy, # position of trees in the plot, in m
-                        rcrown, # radius of tree crowns
-                        values # list of value vectors to be distributed (eg AGB)
-) {
-  
-  if (!is.list(values) | any(lapply(values, length) != length(gx)))
-    stop("`values` should be a list of vectors, each the length of gx, gy and rcrown.")
-  
-  # define grid limits, including all pixels in which a tree crown falls
-  xmin <- floor(min(gx - rcrown) / hpix) * hpix
-  xmax <- ceiling(max(gx + rcrown) / hpix) * hpix
-  ymin <- floor(min(gy - rcrown) / hpix) * hpix
-  ymax <- ceiling(max(gy + rcrown) / hpix) * hpix
-  
-  # create grid
-  grid <- expand.grid(x = seq(xmin, xmax - hpix, by = hpix) + (hpix/2),
-                      y = seq(ymin, ymax-hpix, by = hpix) + (hpix/2))
-  data.table::setDT(grid)
-  # give each pixel a unique identifier
-  grid$pixID <- 1:nrow(grid)
-  
-  # for each pixel, select trees that could be in it (distance between the
-  # center of the pixel and the tree is less than the radius of the crown + the
-  # distance between the center of the pixel and its corners = sqrt(2)/2*hpix)
-  
-  dfpix <-
-    grid[, .(stems = which(sqrt((x - gx) ^ 2 + (y - gy) ^ 2) < rcrown + sqrt(2) / 2 * hpix)), .(pixID, x, y)]
-  
-  dfpix$rcrown <- rcrown[dfpix$stems]
-  dfpix$gx <- gx[dfpix$stems]
-  dfpix$gy <- gy[dfpix$stems]
-  
-  dfpix[, parea := area_circle_rect(x - hpix / 2, x + hpix / 2, y - hpix / 2, y +
-                                      hpix / 2, gx, gy, rcrown)/(rcrown^2*pi), .(stems, pixID)]
-  
-  
-  # mirror pixels outside the plot back inside the plot
-  
-  dfpix[, `:=`(x = abs(1000-abs(1000-x)), y = abs(500-abs(500-y)))]
-  
-  # aggregate values per pixel
-  
-  dfdist <- unique(dfpix[, c("x", "y")])
-  
-  for (i in length(values)) {
-    dfpix$value <- values[[i]][dfpix$stems]
-
-    dfdisti <- 
-      dfpix[, .(value = sum(parea * value, na.rm = TRUE) / (hpix / 100) ^ 2), 
-          .(x, y)]
-    colnames(dfdisti)[3] <- paste0("value", i)
-      
-    dfdist <- merge(dfdist, dfdisti, by = c("x", "y"))
-  }
-  
-  return(dfdist)
-}
-
-```
-
-The radius of the crown is calculated based on the multi-species
-crown allometry from Martinez Cano et al 2019
-```{r}
 dftemp <- df_stem[year==2010, c("stemID", "dbh_t", "gx", "gy", "agb_t", "Dagb_ts")]
+
+# crown allometry from Martinez Cano et al., 2019
 dftemp[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ]
 dftemp[, dbh_t := NULL]
 
-df_crown <- dist_crowns(hpix = 2, 
-                        gx = dftemp$gx, 
-                        gy = dftemp$gy, 
-                        rcrown = dftemp$rcrown, 
+df_crown <- dist_crowns(wpix = 2,
+                        gx = dftemp$gx,
+                        gy = dftemp$gy,
+                        rcrown = dftemp$rcrown,
                         values = list(dftemp$agb_t, dftemp$Dagb_ts))
 colnames(df_crown)[3:4] <- c("agb", "awp")
 ```
 
 
-
-```{r}
+```{r save-results, echo = FALSE}
 df_ind <- subset(df_stem, stemID %in% c(2031, 3671, 1428))
-```
 
-## save results
-```{r}
 save(df_plot, df_size, df_pft, df_ind, df_crown, file = "cache.rda")
 ```
+
+# References
