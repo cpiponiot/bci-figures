@@ -255,8 +255,7 @@ df_stem[, Dagb_t := c(diff(agb_t)/diff(year), NA), .(stemID)]
 
 #### Correction for small stems in 1985
 
-Small stems were rounded down to the nearest 5 mm in the 1985 census: this can potentially create biases when estimating AGB growth between the 1985 and 1990 censuses. To avoid this bias we 
-substituted AGB values of trees DBH < 5.5 cm in 1985 and 1990, with mean AGB values measured in 1990 for each rounding class size groups. We then recalculated AGB growth between those two censuses with the substituted AGB values. 
+Small stems were rounded down to the nearest 5 mm in the 1985 census: this can potentially create biases when estimating AGB growth between the 1985 and 1990 censuses. To avoid this bias we substituted AGB values of trees DBH < 5.5 cm in 1985 and 1990, with mean AGB values measured in 1990 for each rounding class size groups. We then recalculated AGB growth between those two censuses with the substituted AGB values. 
 
 ```{r correct-initial-small-stem-growth}
 small_stems <- df_stem[year == 1985 & dbh < 5.5, unique(stemID)]
@@ -278,7 +277,7 @@ df_small[, Dagb_small := c(diff(agb_m)/diff(year), NA), .(stemID)]
 df_small <- df_small[year==1985 & dbh < 5.5, c("stemID", "Dagb_small")]
 
 df_stem <- merge(df_stem, df_small, all.x = TRUE)
-df_stem[!is.na(Dagb_small), `:=`(Dagb = Dagb_small, Dagb_t = Dagb_small)]
+df_stem[!is.na(Dagb_small) & year == 1985, `:=`(Dagb = Dagb_small, Dagb_t = Dagb_small)]
 df_stem[, Dagb_small := NULL]
 ``` 
 
@@ -433,6 +432,32 @@ plot(x = dfcorr$year, y = dfcorr$agb_ts, col = 2, pch = 16,
 points(x = dfcorr$year, y = dfcorr$agb_t, pch = 16)
 ``` 
 
+
+### Estimating AGB mortality
+
+Stems' abeoveground woody mortality is zero when the stem is alive, and their AGB value (divided by the census interval) when they haven't been measured in the next census. 
+
+```{r mortality}
+df_year_mort <- df_stem[, .(
+  year_mort = max(year)
+), .(stemID)]
+
+df_stem <- merge(df_stem, df_year_mort, by = "stemID", all = TRUE)
+
+# census interval estimated per quadrat
+year_quadrat <- df_stem[, .(year = median(year)), .(quadrat, census_year)]
+year_quadrat <-
+  year_quadrat[order(year), .(census_year, dTq = c(diff(year), NA)), .(quadrat)]
+
+df_stem <- merge(df_stem, year_quadrat, by = c("quadrat", "census_year"), all = TRUE)
+
+df_stem[, `:=`(
+  DagbM = chave14 * (!is.na(year_mort) & census_year == year_mort) / dTq,
+  DagbM_t = agb_t * (!is.na(year_mort) & census_year == year_mort) / dTq,
+  DagbM_ts = agb_ts * (!is.na(year_mort) & census_year == year_mort)/ dTq
+)]
+``` 
+
 ## Aggregating plot-level AGB 
 
 We first reorganized the stem censuses to a long format with a `variable` column (values: "agb" for AGB or "awp" for AGB changes) and a `method`column for the method used: allometry [@Chave2005 or @Chave2014; with or without the height allometry from @MartinezCano2019]; and correction type (original data with or without taper correction from @Cushman2014; with or without outlier substitution). 
@@ -446,13 +471,15 @@ df_stem_melt <-
     variable.name = "method",
   )
 
-df_stem_melt[, variable := c("agb", "awp")[grepl("Dagb", method) + 1]]
+df_stem_melt <- subset(df_stem_melt, value > 0 & !is.na(value))
+
+# create variables: agb, awp, awm
+df_stem_melt[, variable := c("agb", "awp", "awm")[1 + grepl("Dagb", method) + grepl("agbM", method)]]
+
+# rename methods
 df_stem_melt[grepl("_ts", method), method := "chave14+taper+subs"]
 df_stem_melt[grepl("_t", method), method := "chave14+taper"]
-df_stem_melt[method == "Dagb", method := "chave14"]
-
-# replace NAs with 0 in agb values
-df_stem_melt[is.na(value), value := 0]
+df_stem_melt[method %in% c("Dagb", "DagbM"), method := "chave14"]
 ```
 
 Finally, we apply the correction proposed by @Kohyama2019 to correct estimates of woody productivity for unrecorded growth between two censuses. 
@@ -490,19 +517,23 @@ aggregate_agb_dyn <- function(group, # grouping factor
   
   if (kohyama) {
     # apply Kohyama correction 
-    # > need to estimate mortality
-    df[order(year), `:=` (dT = c(diff(year), NA), 
-                          awm = awp - c(diff(agb)/diff(year), NA)), .(group)]
-    df[, awp := kohyama_correction(agb, awp, awm, dT)]
+    df[order(year), dT := c(diff(year), NA), .(group)]
+    df[, awp := kohyama_correction(agb, awp, awm, dT, output = "prod")]
+    df[, awm := kohyama_correction(agb, awp, awm, dT, output = "mort")]
   }
   
   # mean across all years
-  if (agg_years)
-    df <- df[, .(agb = mean(agb), awp = mean(awp, na.rm = TRUE)), .(group)]
+  if (agg_years){
+    df <- df[, .(
+      agb = mean(agb),
+      awp = mean(awp, na.rm = TRUE),
+      awm = mean(awm, na.rm = TRUE)
+    ), .(group)]
+  }
   
   if (long) {
     ids <- c("group", "year")[c("group", "year") %in% colnames(df)]
-    df <- data.table::melt(df, measure.vars = c("agb", "awp"), id.vars = ids)
+    df <- data.table::melt(df, measure.vars = c("agb", "awp", "awm"), id.vars = ids)
   }
   
   colnames(df)[1] <- group
@@ -512,10 +543,20 @@ aggregate_agb_dyn <- function(group, # grouping factor
 
 We first estimated the plot-level annual AGB and AWP for each method used. 
 
-```{r aagr-by-methods}
-df_plot <- subset(aggregate_agb_dyn("method", 50, long = TRUE, kohyama = FALSE), !is.na(value))
+```{r aggr-by-methods}
+df_plot <- 
+  subset(
+    aggregate_agb_dyn(
+      group = "method",
+      area = 50,
+      long = TRUE,
+      kohyama = FALSE
+    ),
+    !is.na(value)
+  )
+
 df_plot_kohyama <- subset(aggregate_agb_dyn("method", 50, long = TRUE), 
-                          variable=="awp" & !is.na(value))
+                          variable %in% c("awp", "awm") & !is.na(value))
 df_plot_kohyama[, method := paste0(method, "+kohyama")]
 
 df_plot <- rbind(df_plot, df_plot_kohyama)
@@ -526,7 +567,7 @@ For all other aggregated AGB data, we used taper-corrected DBHs, the @Chave2014 
 ```{r subset-corrections}
 df_stem_melt <- subset(df_stem_melt,
                        (method == "chave14+taper+subs" & variable == "awp") |
-                         (method == "chave14+taper" & variable == "agb")
+                         (method == "chave14+taper" & variable != "awp")
 )
 ```
 
@@ -702,7 +743,7 @@ area_circle_square <- function(x0, y0, w, cx, cy, r)
   }
 }
 
-dftemp <- df_stem[year==2010, c("stemID", "dbh_t", "gx", "gy", "agb_t", "Dagb_ts")]
+dftemp <- df_stem[year==2010]
 
 # crown allometry from Martinez Cano et al., 2019
 dftemp[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ]
@@ -712,8 +753,10 @@ df_crown <- dist_crowns(wpix = 2,
                         gx = dftemp$gx,
                         gy = dftemp$gy,
                         rcrown = dftemp$rcrown,
-                        values = list(dftemp$agb_t, dftemp$Dagb_ts))
-colnames(df_crown)[3:4] <- c("agb", "awp")
+                        values = list(dftemp$agb_t, 
+                                      dftemp$Dagb_ts, 
+                                      dftemp$DagbM_t))
+colnames(df_crown)[3:5] <- c("agb", "awp", "awm")
 ```
 
 

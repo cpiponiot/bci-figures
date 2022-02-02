@@ -222,10 +222,10 @@ fig2ad_corr_tree <- ggplot(df_ind_melt, aes(x = year, y = value, color = method)
   facet_wrap(~variable, scales = "free", strip.position = "left")
 
 # fig2b - corrections on plot AGB
-dfcorr <- subset(df_plot, !grepl("chave05|_h", method) & !(variable=="awp" & year == 2015))
+dfcorr <- subset(df_plot, !grepl("chave05|_h", method) & !(variable!="agb" & year == 2015))
 
 # put awp points between the 2 years that it's based on
-dfcorr[variable == "awp", year := year + 2.5]
+dfcorr[variable != "agb", year := year + 2.5]
 
 # change order of method and variable levels
 dfcorr$method <- factor(dfcorr$method, levels = unique(dfcorr$method))
@@ -237,11 +237,13 @@ levels(dfcorr$method) <- list("Original data" = "chave14",
                               "Taper correction+ Outlier substitution\n+ Kohyama correction" = "chave14+taper+subs+kohyama")
 
 
-dfcorr$variable <- factor(dfcorr$variable, levels = c("agb", "awp"))
-levels(dfcorr$variable) <- list("AGB (Mg/ha)" = "agb", "AWP (Mg/ha/yr)" = "awp")
+dfcorr$variable <- factor(dfcorr$variable, levels = c("agb", "awp", "awm"))
+levels(dfcorr$variable) <- list("AGB (Mg/ha)" = "agb",
+                                "AWP (Mg/ha/yr)" = "awp",
+                                "AWM (Mg/ha/yr)" = "awm")
 
 # make panel labels 
-dflabs <- data.frame(variable = levels(dfcorr$variable), label = letters[5:6])
+dflabs <- data.frame(variable = levels(dfcorr$variable), label = letters[5:7])
 
 fig2ef_corr_plot <-
   ggplot(dfcorr, aes(x = year, y = value, color = method)) +
@@ -287,13 +289,13 @@ Tree characteristics (size, canopy stature, growth rate, etc.) provide insight i
 # Figure 3 - AGB per group ####
 
 # # estimate percentage of each size class or PFT group per variable
-df_size[, `:=`(agb = agb/sum(agb), awp = awp/sum(awp))]
+df_size[, `:=`(agb = agb/sum(agb), awp = awp/sum(awp), awm = awm/sum(awm))]
 # revert order of size classes to have bigger trees above
 df_size$size <- factor(df_size$size, levels = rev(levels(df_size$size)))
 # 
-df_pft[, `:=`(agb = agb/sum(agb), awp = awp/sum(awp))]
+df_pft[, `:=`(agb = agb/sum(agb), awp = awp/sum(awp), awm = awm/sum(awm))]
 
-df_size_bis <- data.table::melt(df_size, measure.vars = c("agb", "awp"))
+df_size_bis <- data.table::melt(df_size, measure.vars = c("agb", "awp", "awm"))
 # change variable labels (AGB, AWP) to upper case
 levels(df_size_bis$variable) <- toupper(levels(df_size_bis$variable))
 # figure 3a bis
@@ -304,7 +306,7 @@ fig3a_bis_groups_size <- ggplot(df_size_bis) +
   scale_fill_brewer(palette = "RdYlBu") +
   theme_classic()
 
-df_pft_bis <- data.table::melt(df_pft, measure.vars = c("agb", "awp"))
+df_pft_bis <- data.table::melt(df_pft, measure.vars = c("agb", "awp", "awm"))
 # change variable labels (AGB, AWP) to upper case
 levels(df_pft_bis$variable) <- toupper(levels(df_pft_bis$variable))
 
@@ -405,7 +407,7 @@ df_crown[, `:=`(q1 = NULL, q2 = NULL)]
 # merge with bci_habitats
 df_crown <- merge(df_crown, bci_habitat[, c("q20", "habitat")], by = "q20")
 
-dfhab2 <- data.table::melt(df_crown, measure.vars = c("agb", "awp"), id.vars = c("habitat", "q20"))
+dfhab2 <- data.table::melt(df_crown, measure.vars = c("agb", "awp", "awm"), id.vars = c("habitat", "q20"))
 # group by quadrat
 dfhab2 <- dfhab2[, .(value = mean(value)), .(variable, q20, habitat)]
 
