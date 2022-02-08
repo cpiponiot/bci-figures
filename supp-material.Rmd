@@ -22,7 +22,7 @@ csl: common/new-phytologist.csl
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, results = "hide")
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, results = "hide")
 ```
 
 # Detailed methods and codes
@@ -31,7 +31,7 @@ Some R packages are used in the codes, and must be installed on the computer bef
 
 ```{r install-packages}
 # list of package dependencies
-req_packages <- c("rdryad", "data.table", "utils", "truncnorm", "readxl")
+req_packages <- c("rdryad", "data.table", "utils", "truncnorm", "openxlsx", "docxtractr")
 
 # packages that are not yet installed on the computer
 ins_packages <-  req_packages[!(req_packages %in% rownames(installed.packages()))]
@@ -580,13 +580,8 @@ df_size <- aggregate_agb_dyn(group = "size", area = 50, agg_years = TRUE)
 To group species into functional groups we used plant functional types as described in @Ruger2020. The data was downloaded from their supplementary material. 
 
 ```{r get-ruger-data}
-if (!file.exists("ruger_data_s1.xlsx"))
-  utils::download.file(url = "https://www.science.org/doi/suppl/10.1126/science.aaz4797/suppl_file/aaz4797_ruger_data_s1.xlsx", 
-                       destfile = "ruger_data_s1.xlsx")
-# if the function doesn't work the data can be downloaded "manually"
-
-# read downloaded data
-ruger_data <- readxl::read_xlsx("ruger_data_s1.xlsx", sheet = "Data")
+ruger_url <- "https://www.science.org/doi/suppl/10.1126/science.aaz4797/suppl_file/aaz4797_ruger_data_s1.xlsx"
+ruger_data <- openxlsx::read.xlsx(ruger_url, sheet = "Data")
 
 ruger_data$sp <- tolower(ruger_data$sp)
 
@@ -606,12 +601,84 @@ swartzia2$sp <- "swars2"
 ruger_data <- rbind(ruger_data, swartzia2)
 ``` 
 
-Species plant functional types were then added to the census data, and we calculated the  mean of AGB and AWP across censuses by plant functional type. 
+Species plant functional types were then added to the census data, and we calculated the mean of AGB and AWP across censuses by plant functional type. 
 
 ```{r aggr-by-pft}
 df_stem_melt <- merge(df_stem_melt, ruger_data[, c("sp", "PFT")], by = "sp", all.x = TRUE)
 
 df_pft <- aggregate_agb_dyn("PFT", 50, agg_years = TRUE)
+``` 
+
+<!-- Russo et al. 2020: didn't find codes and data on fgeo github repo -->
+
+<!-- Powell et al 2018: not real data (uses 1 value per PFT) -->
+
+#### Test other deifinition of plant functional types: Rubio et al 2022
+
+```{r rubio-2022}
+# download supporting information file (word doc) from Rubio et al 2022 
+# https://besjournals.onlinelibrary.wiley.com/doi/10.1111/1365-2745.13795
+rubio_url <- "https://besjournals.onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1111%2F1365-2745.13795&file=jec13795-sup-0001-Supinfo.docx"
+
+# extract table s1 from doc
+rubio_si <- docxtractr::read_docx(rubio_url) 
+rubio_tab <- docxtractr::docx_extract_tbl(rubio_si, 1)
+
+# reformat table to be machine readable
+rubio_tab <- rbind(rubio_tab[,1:2], rubio_tab[,3:4], 
+                   rubio_tab[5:6], rubio_tab[,7:8])
+rubio_tab <- subset(rubio_tab, FG != "")
+
+# correct typos 
+rubio_tab$Species[rubio_tab$Species == "Erythrina costaricensi"] <- "Erythrina costaricensis"
+rubio_tab$Species[rubio_tab$Species == "Lacmella panamensis"] <- "Lacmellea panamensis"
+
+# remove quotes from species names
+rubio_tab$Species <- gsub("'", "", rubio_tab$Species)
+
+# different fg for subspecies?
+rubio_tab$Genus <- data.table::tstrsplit(rubio_tab$Species, " ")[[1]]
+rubio_tab$Species <- data.table::tstrsplit(rubio_tab$Species, " ")[[2]]
+rubio_tab$name <- paste(rubio_tab$Genus, rubio_tab$Species)
+
+# Erythroxylum panamense is in both groups 1 and 2 > change to group 2 only
+# because there is one other species from same genus (Erythroxylum macrophyllum)
+# in group 2 > more likely that Erythroxylum panamense is also in group 2
+rubio_tab <- subset(rubio_tab, !(Genus == "Erythroxylum" & FG == 1))
+
+# find synonyms of BCI species names
+# > get all synonyms of BCI species from bci.spptable
+syns <- strsplit(bci.spptable$syn, ",")
+names(syns) <- bci.spptable$sp
+syns <- unlist(syns, use.names = TRUE)
+df_syn <- data.frame(sp = names(syns), Latin = syns)
+# add species' original name to the list of synonyms
+df_syn <- rbind(subset(df_syn, !is.na(Latin)), bci.spptable[, c("sp", "Latin")])
+
+# keep only genus + species 
+df_syn$name <- do.call(paste, data.table::tstrsplit(df_syn$Latin, " ")[1:2])
+
+# match synonyms
+rubio_tab <- merge(rubio_tab, df_syn, by = "name", all.x = TRUE)
+
+# change to accepted synonym
+rubio_tab$sp[rubio_tab$name == "Zanthoxylum juniperinum"] <- "zantpr"
+
+rubio_tab <- unique(rubio_tab[, c("sp", "FG")])
+
+# check match with bci data
+tabsp <- merge(df_stem[, .(n = length(stemID), agb = sum(agb)), .(sp)], 
+               rubio_tab, by = c("sp"), all.x= TRUE)
+tabsp[,.(pa = sum(agb) / sum(tabsp$agb)*100, ps = sum(n) / sum(tabsp$n)*100), .(FG)]
+# 8.6% of unmatched stems, 10% of unmatched biomass
+```
+
+Species plant functional types were then added to the census data, and we calculated the mean of AGB and AWP across censuses by plant functional type. 
+
+```{r aggr-by-pft-rubio}
+df_stem_melt <- merge(df_stem_melt, rubio_tab, by = "sp", all.x = TRUE)
+
+df_pft2 <- aggregate_agb_dyn("FG", 50, agg_years = TRUE)
 ``` 
 
 
@@ -704,8 +771,12 @@ g <- function(x, h, r = 1)
 # the origin with radius r
 area_inf <- function(x0, x1, h, r)
 {
-  if (x0 > x1)
-    seqinr::swap(x0, x1) # this must be sorted otherwise we get negative area
+  if (x0 > x1) {
+    # swap x0 and x1 to avoid getting a negative area
+    x0s <- x0
+    x0 <- x1
+    x1 <- x0s
+  } 
   
   s <- section(h, r)
   # integrate the area
@@ -722,8 +793,12 @@ area_circle_square <- function(x0, y0, w, cx, cy, r)
   y1 <- (y0 + w) - cy; y0 <- y0 - cy;
   
   # area of the intersection of a finite box with a circle centered at the origin with radius r
-  if (y0 > y1)
-    seqinr::swap(y0, y1)
+  if (y0 > y1) {
+    # swap y0 and y1 
+    y0s <- y0
+    y0 <- y1
+    y1 <- y0s
+  } 
   
   if (y0 >= 0) {
     # y1 > y0 >=0
@@ -763,7 +838,7 @@ colnames(df_crown)[3:5] <- c("agb", "awp", "awm")
 ```{r save-results, echo = FALSE}
 df_ind <- subset(df_stem, stemID %in% c(2031, 3671, 1428))
 
-save(df_plot, df_size, df_pft, df_ind, df_crown, file = "cache.rda")
+save(df_plot, df_size, df_pft, df_pft2, df_ind, df_crown, file = "cache.rda")
 ```
 
 # References
