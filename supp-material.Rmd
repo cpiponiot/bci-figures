@@ -136,7 +136,7 @@ agb_bci <- function(dbh,  # dbh, in cm
                     wsg,  # wood specific gravity values 
                     palms = NULL,  # logical: is the individual a palm?
                     method = "chave14", 
-                    use_height_allom = FALSE) {
+                    use_height_allom = TRUE) {
   
   if (use_height_allom) {
     
@@ -208,6 +208,9 @@ df_stem[, chave05_h := agb_bci(dbh = dbh,
                                method = "chave05", 
                                use_height_allom = TRUE, 
                                palms = (Family == "Arecaceae"))]
+
+## reference allometry: chave 2014 with local height allometry
+df_stem[, agb := chave14_h]
 ```
 
 ### Applying the taper correction
@@ -298,7 +301,7 @@ df_stem[, tot_rawp := sum(Dagb[!outlier],na.rm=T)/sum(agb[!outlier]),
         .(size = cut(dbh, c(0, 10, 20, 50, 500)))]  
 
 # substitute outliers' AGB and BA change
-df_stem[outlier == TRUE, awp := tot_rawp*agb]
+df_stem[, Dagb_s := ifelse(outlier == TRUE, tot_rawp*agb, Dagb)]
 
 ## check that there is no significant relationship between dbh and relative awp
 
@@ -360,9 +363,8 @@ year_quadrat <-
 df_stem <- merge(df_stem, year_quadrat, by = c("quadrat", "census_year"), all = TRUE)
 
 df_stem[, `:=`(
-  DagbM = chave14 * (!is.na(year_mort) & census_year == year_mort) / dTq,
-  DagbM_t = agb_t * (!is.na(year_mort) & census_year == year_mort) / dTq,
-  DagbM_ts = agb_ts * (!is.na(year_mort) & census_year == year_mort)/ dTq
+  DagbM = agb * (!is.na(year_mort) & census_year == year_mort) / dTq,
+  DagbM_t = agb_t * (!is.na(year_mort) & census_year == year_mort) / dTq
 )]
 ``` 
 
@@ -371,6 +373,8 @@ df_stem[, `:=`(
 We first reorganized the stem censuses to a long format with a `variable` column (values: "agb" for AGB or "awp" for AGB changes) and a `method`column for the method used: allometry [@Chave2005 or @Chave2014; with or without the height allometry from @MartinezCano2019]; and correction type (original data with or without taper correction from @Cushman2014; with or without outlier substitution). 
 
 ```{r melt-table}
+df_stem[, size := cut(dbh, c(1, 10, 20, 30, 50, 100, 320), include.lowest = TRUE)]
+
 df_stem_melt <-
   data.table::melt(
     df_stem,
@@ -385,9 +389,14 @@ df_stem_melt <- subset(df_stem_melt, value > 0 & !is.na(value))
 df_stem_melt[, variable := c("agb", "awp", "awm")[1 + grepl("Dagb", method) + grepl("agbM", method)]]
 
 # rename methods
-df_stem_melt[grepl("_ts", method), method := "chave14+taper+subs"]
-df_stem_melt[grepl("_t", method), method := "chave14+taper"]
-df_stem_melt[method %in% c("Dagb", "DagbM"), method := "chave14"]
+df_stem_melt[grepl("_s", method), method := "chave14_h+subs"]
+df_stem_melt[grepl("_t", method), method := "chave14_h+taper"]
+df_stem_melt[method %in% c("Dagb", "DagbM"), method := "chave14_h"]
+
+## for outlier substitution: add chave14_h for agb and awm
+df_stem_melt_subs <- df_stem_melt[variable %in% c("agb", "awm") & method == "chave14_h"]
+df_stem_melt_subs[, method := "chave14_h+subs"]
+df_stem_melt <- rbind(df_stem_melt, df_stem_melt_subs)
 ```
 
 Finally, we apply the correction proposed by @Kohyama2019 to correct estimates of woody productivity for unrecorded growth between two censuses. 
@@ -411,41 +420,54 @@ Below is a function that aggregates AGB and AWP values according to a grouping f
 
 ```{r aggr-agb-dyn-function}
 aggregate_agb_dyn <- function(group, # grouping factor
-                              area,  # unit area
-                              kohyama = TRUE, # apply the Kohyama et al 2019 correction?
-                              agg_years = FALSE,  # aggregate over years?
-                              long = FALSE # give results in long format?
+                              area,  # unit area 
+                              nboot = 0, # bootstrap over quadrats?
+                              kohyama = TRUE # apply the Kohyama et al 2019 correction?
 ) {
   
   # get long format table with aggregated values 
-  df <- df_stem_melt[,  .(value = sum(value) / area),
-                     .(variable, year = census_year, group = get(group))]
-  
-  df <- data.table::dcast(df, year + group ~ variable)
+  if (nboot > 0) {
+    
+    df <- df_stem_melt[,  .(value = sum(value) / area),
+                       .(variable, year = census_year, group = get(group), quadrat)]
+    df <- data.table::dcast(df, year + group + quadrat ~ variable)
+    df[order(year), dT := c(diff(year), NA), .(group, quadrat)]
+    
+  } else {
+    
+    df <- df_stem_melt[,  .(value = sum(value) / area),
+                       .(variable, year = census_year, group = get(group))]
+    df <- data.table::dcast(df, year + group ~ variable)
+    df[order(year), dT := c(diff(year), NA), .(group)]
+    
+  }
   
   if (kohyama) {
     # apply Kohyama correction 
-    df[order(year), dT := c(diff(year), NA), .(group)]
     df[, awp := kohyama_correction(agb, awp, awm, dT, output = "prod")]
     df[, awm := kohyama_correction(agb, awp, awm, dT, output = "mort")]
   }
   
-  # mean across all years
-  if (agg_years){
-    df <- df[, .(
-      agb = mean(agb),
-      awp = mean(awp, na.rm = TRUE),
-      awm = mean(awm, na.rm = TRUE)
-    ), .(group)]
-  }
+  # to long format
+  ids <- c("group", "year")[c("group", "year") %in% colnames(df)]
+  df <- data.table::melt(df, measure.vars = c("agb", "awp", "awm"), id.vars = ids)
+  df <- subset(df, !is.na(value))
   
-  if (long) {
-    ids <- c("group", "year")[c("group", "year") %in% colnames(df)]
-    df <- data.table::melt(df, measure.vars = c("agb", "awp", "awm"), id.vars = ids)
+  if (nboot > 0) {
+    df <- df[, .(tot = sum(value),
+                 lwr = bootstrap_q(value, nboot, pb = 0.025), 
+                 upr = bootstrap_q(value, nboot, pb = 0.975)), 
+             .(group, year, variable)]
   }
   
   colnames(df)[1] <- group
   return(df)
+}
+
+## simple bootstrap function
+bootstrap_q <-  function(x, k, pb = c(0.025, 0.975)) {
+  xs <- sapply(seq_len(k), function(i) sum(sample(x, length(x), replace = TRUE)))
+  return(quantile(xs, probs = pb))
 }
 ```
 
@@ -453,18 +475,19 @@ We first estimated the plot-level annual AGB and AWP for each method used.
 
 ```{r aggr-by-methods}
 df_plot <- 
-  subset(
-    aggregate_agb_dyn(
-      group = "method",
-      area = 50,
-      long = TRUE,
-      kohyama = FALSE
-    ),
-    !is.na(value)
+  aggregate_agb_dyn(
+    group = "method",
+    area = 50,
+    kohyama = FALSE, 
+    nboot = 1000
   )
 
-df_plot_kohyama <- subset(aggregate_agb_dyn("method", 50, long = TRUE), 
-                          variable %in% c("awp", "awm") & !is.na(value))
+df_plot_kohyama <- subset(aggregate_agb_dyn(
+  group = "method",
+  area = 50,
+  kohyama = TRUE, 
+  nboot = 1000
+), variable %in% c("awp", "awm"))
 df_plot_kohyama[, method := paste0(method, "+kohyama")]
 
 df_plot <- rbind(df_plot, df_plot_kohyama)
@@ -473,23 +496,21 @@ df_plot <- rbind(df_plot, df_plot_kohyama)
 For all other aggregated AGB data, we used taper-corrected DBHs, the @Chave2014 allometric equation (without height), and applied outlier substitution for AWP but not AGB.   
 
 ```{r subset-corrections}
-df_stem_melt <- subset(df_stem_melt,
-                       (method == "chave14+taper+subs" & variable == "awp") |
-                         (method == "chave14+taper" & variable != "awp")
-)
+df_stem_melt <- subset(df_stem_melt, method == "chave14_h+subs")
 ```
 
 We also calculated the mean AGB and AWP by size class over all years. 
 
 ```{r aggr-by-size}
-df_size <- aggregate_agb_dyn(group = "size", area = 50, agg_years = TRUE)
+df_size <- aggregate_agb_dyn(group = "size", area = 50, nboot = 1000)
 ```
 
 To group species into functional groups we used plant functional types as described in @Ruger2020. The data was downloaded from their supplementary material. 
 
 ```{r get-ruger-data}
 ruger_url <- "https://www.science.org/doi/suppl/10.1126/science.aaz4797/suppl_file/aaz4797_ruger_data_s1.xlsx"
-ruger_data <- openxlsx::read.xlsx(ruger_url, sheet = "Data")
+download.file(ruger_url, destfile = "ruger_data_s1.xlsx", mode = "wb")
+ruger_data <- openxlsx::read.xlsx("ruger_data_s1.xlsx", sheet = "Data")
 
 ruger_data$sp <- tolower(ruger_data$sp)
 
@@ -514,7 +535,7 @@ Species plant functional types were then added to the census data, and we calcul
 ```{r aggr-by-pft}
 df_stem_melt <- merge(df_stem_melt, ruger_data[, c("sp", "PFT")], by = "sp", all.x = TRUE)
 
-df_pft <- aggregate_agb_dyn("PFT", 50, agg_years = TRUE)
+df_pft <- aggregate_agb_dyn("PFT", area = 50, nboot = 1000)
 ``` 
 
 <!-- Russo et al. 2020: didn't find codes and data on fgeo github repo -->
@@ -529,7 +550,8 @@ df_pft <- aggregate_agb_dyn("PFT", 50, agg_years = TRUE)
 rubio_url <- "https://besjournals.onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1111%2F1365-2745.13795&file=jec13795-sup-0001-Supinfo.docx"
 
 # extract table s1 from doc
-rubio_si <- docxtractr::read_docx(rubio_url) 
+download.file(rubio_url, destfile = "rubio_si.docx", mode = "wb")
+rubio_si <- docxtractr::read_docx("rubio_si.docx") 
 rubio_tab <- docxtractr::docx_extract_tbl(rubio_si, 1)
 
 # reformat table to be machine readable
@@ -586,7 +608,7 @@ Species plant functional types were then added to the census data, and we calcul
 ```{r aggr-by-pft-rubio}
 df_stem_melt <- merge(df_stem_melt, rubio_tab, by = "sp", all.x = TRUE)
 
-df_pft2 <- aggregate_agb_dyn("FG", 50, agg_years = TRUE)
+df_pft2 <- aggregate_agb_dyn("FG", area = 50, nboot = 1000)
 ``` 
 
 
@@ -736,9 +758,9 @@ df_crown <- dist_crowns(wpix = 2,
                         gx = dftemp$gx,
                         gy = dftemp$gy,
                         rcrown = dftemp$rcrown,
-                        values = list(dftemp$agb_t, 
-                                      dftemp$Dagb_ts, 
-                                      dftemp$DagbM_t))
+                        values = list(dftemp$agb, 
+                                      dftemp$Dagb_s, 
+                                      dftemp$DagbM))
 colnames(df_crown)[3:5] <- c("agb", "awp", "awm")
 ```
 
@@ -748,5 +770,128 @@ df_ind <- subset(df_stem, stemID %in% c(2031, 3671, 1428))
 
 save(df_plot, df_size, df_pft, df_pft2, df_ind, df_crown, file = "cache.rda")
 ```
+
+
+# Supplementary tables 
+
+```{r plot-level-stocks-fig, fig.height = 3, fig.width=9}
+library(ggplot2)
+load("cache.rda")
+
+# prepare data for the figure
+dfig <- subset(df_plot, method == "chave14_h+subs")
+# intermediate census years for agb fluxes
+dfig[variable != "agb", year := year + 2.5]
+
+levels(dfig$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
+
+ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) + 
+  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr)) +
+  ggplot2::facet_wrap(~ variable, scales = "free") +
+  ggplot2::labs(y = "", x = "") +
+  ggplot2::scale_y_continuous(expand = c(0, 0)) +
+  ggplot2::expand_limits(y = 0) +
+  ggplot2::theme_classic() +
+  ggplot2::theme(strip.placement = "outside", 
+                 strip.background = element_blank(), 
+                 legend.position = "none",
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~variable, scales = "free", strip.position = "left")
+```
+
+```{r plot-level-stocks-tab, fig.height = 3, fig.width=9}
+# prepare data for the figure
+dtab <- subset(df_plot, method == "chave14_h+subs")
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, year ~ variable, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+knitr::kable(dtab, col.names = c("Census year", "Census interval", "AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)"))
+```
+
+
+```{r fig3-groups, fig.height = 10, fig.width = 10}
+# Figure 3 - AGB per group ####
+load("cache.rda")
+# a - size groups
+
+# change variable labels (AGB, AWP) to upper case
+levels(df_size$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
+
+# revert order of size classes to have bigger trees above
+df_size$size <- factor(df_size$size, levels = rev(levels(df_size$size)))
+
+fig3a_bis_groups_size <- ggplot(df_size) + 
+  geom_col(aes(x = year, y = tot, fill = size)) + 
+  labs(x = "", y = "", fill = "Diameter\nclass (cm)") +
+  scale_y_continuous(expand = c(0, 0)) +  
+  scale_fill_brewer(palette = "RdYlBu") +
+  ggplot2::theme_classic() +
+  ggplot2::theme(strip.placement = "outside", 
+                 strip.background = element_blank(), 
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~variable, scales = "free", strip.position = "left")
+
+# b - PFT according to Ruger et al 2020
+
+levels(df_pft$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
+
+# order and rename PFT 
+df_pft$PFT[is.na(df_pft$PFT)] <- "NA"
+df_pft$PFT <- factor(df_pft$PFT, levels = c("slow", "fast", "LLP", "SLB", "intermediate", "NA"))
+levels(df_pft$PFT) <- list("Slow" = "slow", "Fast" = "fast", 
+                               "Long-lived pioneers" = "LLP", 
+                               "Short-lived breeders" = "SLB", 
+                               "Intermediate" = "intermediate", 
+                               "No value" = "NA")
+
+fig3b_bis_groups_pft <- ggplot(df_pft) + 
+  geom_col(aes(x = year, y = tot, fill = PFT)) + 
+  labs(x = "", y = "", fill = "PFT \n(Ruger et al., 2020)") +
+  scale_y_continuous(expand = c(0, 0)) +  
+  scale_fill_manual(values = c("orchid", "gold", "seagreen", "royalblue", "darkorange", "grey")) +
+  theme_classic() +
+  ggplot2::theme(strip.placement = "outside", 
+                 strip.background = element_blank(), 
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~variable, scales = "free", strip.position = "left")
+
+# c - PFT according to Rubio et al 2022
+
+# change variable labels (AGB, AWP) to upper case
+levels(df_pft2$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
+
+# order and rename PFT 
+df_pft2$FG[is.na(df_pft2$FG)] <- "NA"
+df_pft2$FG <- factor(df_pft2$FG, levels = c("1", "2", "3", "NA"))
+levels(df_pft2$FG) <- list("Short shade-tolerants" = "1", 
+                               "Tall shade-tolerants" = "2", 
+                               "Tall pioneers" = "3",
+                               "No value" = "NA")
+
+fig3c_bis_groups_pft2 <- ggplot(df_pft2) + 
+  geom_col(aes(x = year, y = tot, fill = FG)) + 
+  labs(x = "", y = "", fill = "FG \n(Rubio & Swenson, 2022)") +
+  scale_y_continuous(expand = c(0, 0)) +  
+  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "grey")) +
+  theme_classic() +
+  ggplot2::theme(strip.placement = "outside", 
+                 strip.background = element_blank(), 
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~variable, scales = "free", strip.position = "left")
+
+fig3a_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig3a_bis_groups_size))
+fig3b_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig3b_bis_groups_pft))
+fig3c_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig3c_bis_groups_pft2))
+
+ggpubr::ggarrange(fig3a_bis_groups_size + theme(legend.position = "none"), fig3a_leg,
+                  fig3b_bis_groups_pft + theme(legend.position = "none"), fig3b_leg,
+                  fig3c_bis_groups_pft2 + theme(legend.position = "none"), fig3c_leg,
+                  ncol = 2, nrow = 3, widths = c(4,1))
+```
+
 
 # References
