@@ -245,7 +245,7 @@ data.table::setorder(df_stem, treeID, stemID, year)
 df_stem[, dT := c(diff(year), NA), .(stemID)]
 
 # original data 
-# df_stem[, Ddbh := c(diff(dbh)/diff(year), NA), .(stemID)]
+df_stem[, Ddbh := c(diff(dbh)/diff(year), NA), .(stemID)]
 df_stem[, Dagb := c(diff(agb_t)/diff(year), NA), .(stemID)]
 
 # taper corrected data
@@ -283,154 +283,62 @@ df_stem[, Dagb_small := NULL]
 
 #### Outlier substitution
 
-In cases where the change in DBH was $\leq$ -0.5 cm yr$^{-1}$ or $\geq$ 5 cm yr$^{-1}$, the corresponding AGB change was substituted with the expected value, calculated for all other stems in the same size class, as detailed below.
-
-The DBH distribution of each diameter class $b$ was approximated with a normal distribution of mean $\mu_{b}$ and standard deviation $\sigma_{b}$ after transforming DBH values with the modulus function (with parameter $\lambda = 0.5$) to remove the skewness [see @Condit2017 and @Piponiot2022]. 
-
-We calculated the expected change in AGB for any given stem by integrating the AGB allometry with the expected DBH change distribution for the appropriate size class, given that stem’s initial DBH.
-
-The modulus function used to transform DBH changes is defined as:
-
-\begin{equation}
-mod(x) = \left\{
-\begin{array}{ll}
-x^{\lambda}\hspace{1cm} \text{ if }x \geq 0\\
--(-x)^{\lambda}\text{ if }x <0
-\end{array}
-\right.
-\end{equation}
-
-<!-- The expected DBH change in diameter class $b$ change is then: -->
-
-<!-- \begin{equation} -->
-<!-- [E(dDBH)]_{s,b} = \int_{-\infty}^{+\infty} mod^{-1}(x)\cdot \varphi\left(\frac{x-\mu_{b}}{\sigma_{b}}\right)\cdot dx -->
-<!-- \end{equation} -->
-
-For each stem $i$ in diameter class $b$ with initial DBH $D_i$, we calculated the expected AGB change as
-
-\begin{equation}
-[E(dAGB)]_i = \int_{dmin}^{+\infty} \left(AGB(D_i+mod^{-1}(x))-AGB(D_i)\right) \cdot \frac{\varphi\left(\frac{x-\mu_{b}}{\sigma_{b}}\right)}{1-\Phi\left(\frac{x-\mu_{b}}{\sigma_{b}}\right)}\cdot dx
-\end{equation}
-
-with $D_i+mod^{-1}(dmin) = 0$ $\Rightarrow$ $dmin = - D_i^\lambda$ (to avoid negative AGB values), $AGB$ is the allometric equation used, and $\varphi$ and $\Phi$ are respectively the probability and cumulative density functions of the standard normal distribution.
-
-```{r function-outlier-substitution}
-substitute_change = function(varD,  # dbh variation (cm/yr)
-                             dT,    # time interval between two censuses
-                             cut = c(-0.5, 5), # threshold of acceptable dbh change
-                             lambda = 0.5,
-                             value = "D", # output: either "D" (DBH change) or "AGB" (AGB change)
-                             D = NULL,   # when calculating expected AGB change, need to provide corresponding DBH
-                             WD = NULL,  # when calculating expected AGB change, need to provide corresponding wood gravity
-                             palms = NULL # logical: is the individual a palm?
-) {
-  
-  # values to keep
-  keep_values <- which(varD > cut[1] & varD < cut[2] & !is.na(varD))
-  
-  # outliers
-  change_values <- which((varD <= cut[1] | varD >= cut[2]) & !is.na(varD))
-  
-  # distribution of modulus-transformed dbhs
-  transf_values <- modulus(varD[keep_values], lambda)
-  mu <- mean(transf_values)
-  sigma <- sd(transf_values)
-  
-  # expected value of dbh change
-  if (value == "D") {
-    diffModD <- function(x) modulus(x, 1 / lambda) * dnorm(x, mu, sigma)
-    varD[change_values] <- integrate(diffModD, -Inf, Inf)$value
-    return(varD)
-  }
-  
-  # expected value of agb change
-  if (value == "AGB") {
-    dAGB = (agb_bci(dbh = D + varD*dT, wsg = WD, palms) - 
-              agb_bci(dbh = D, wsg = WD, palms))/dT
-    if (length(change_values) == 1) {
-      dAGB[change_values] <- ExpDiffAGB(
-        d = D[change_values],
-        wsg = WD[change_values],
-        lambda = lambda,
-        mu = mu,
-        sigma = sigma
-      )
-    } else if (length(change_values) > 1) {
-      dAGB[change_values] = apply(cbind(D, WD)[change_values, ], 1, function(x) {
-        ExpDiffAGB(
-          d = x[1],
-          wsg = x[2],
-          lambda = lambda,
-          mu = mu,
-          sigma = sigma
-        )
-      })
-    }
-    return(dAGB)
-  }
-}
-
-modulus <- function(d, lambda = 0.5) {
-  return(sign(d) * abs(d) ^ lambda)
-}
-
-ExpDiffAGB <- function(d, wsg, lambda, mu, sigma, palms = NULL) {
-  # AGB > 0 => d + modulus(x, 1/lambda) > 0 => x > -(d^lambda)
-  minVar <- -d ^ lambda
-  pdfdAGB <- function(x) {
-    dAGB = agb_bci(d + modulus(x, 1 / lambda), wsg, palms) - agb_bci(d, wsg, palms)
-    dens = truncnorm::dtruncnorm(x, mean = mu, sd = sigma, a = minVar)
-    return(dAGB * dens)
-  }
-  return(integrate(pdfdAGB, lower = minVar, upper = Inf)$value)
-}
-```
-
-
-Diameter classes were defined as follows: $[1,10]$, $(10,20]$, $(20,30]$, $(30,50]$, $(50,100]$, $(100,320]$ (in cm).
-
-```{r create-size-classes}
-maxD <- ceiling(max(df_stem$dbh_t, na.rm = TRUE))
-df_stem[, size := cut(dbh_t, c(1, 10, 20, 30, 50, 100, maxD), include.lowest = TRUE)]
-```
-
-Outlier values of AGB changes (after the taper correction) were then substituted with the expected AGB change for the corresponding diameter class. 
+In cases where the change in DBH was $\leq$ -2.5 cm yr$^{-1}$ or $\geq$ 7.5 cm yr$^{-1}$ or when a change in the height of measurement was detected, the corresponding AGB change was substituted by the whole plot relative AGB change (sum(AGB change)/sum(AGB)), multiplied by the stem's AGB.
 
 ```{r outlier-substitution}
-## change abnormal agb changes, grouping by size
-df_stem[!is.na(Ddbh_t), `:=`(
-  Dagb_ts = substitute_change(D = dbh_t, dT = dT,
-                              varD = Ddbh_t, WD = wsg, 
-                              value = "AGB", cut = c(-0.5, 5), 
-                              palms = (Family == "Arecaceae"))),
-  size]
+data.table::setorder(df_stem, stemID, date)
+
+# outlier values: HOm change or abnormal DBH changes
+df_stem[, hom_change := c(diff(hom) != 0, NA), .(stemID)]
+df_stem[, hom_change := ifelse(is.na(hom_change) & !is.na(Ddbh),TRUE, hom_change)]
+df_stem[, outlier := !is.na(Ddbh) & (hom_change | Ddbh > 7.5 | Ddbh < -2.5)]
+
+# relative AGB change per plot for survivors , by size class
+df_stem[, tot_rawp := sum(Dagb[!outlier],na.rm=T)/sum(agb[!outlier]), 
+        .(size = cut(dbh, c(0, 10, 20, 50, 500)))]  
+
+# substitute outliers' AGB and BA change
+df_stem[outlier == TRUE, awp := tot_rawp*agb]
+
+## check that there is no significant relationship between dbh and relative awp
+
+# df_stem[order(dbh), .(tot_rawp = sum(Dagb[!outlier],na.rm=T)/sum(agb[!outlier])), 
+#         .(size = cut(dbh, c(0, 10, 20, 50, 500)))] 
+# df_stem[, .(tot_rawp_s = sum(Dagb[!outlier],na.rm=T)/sum(agb[!outlier]))]
+# df_stem[, .(tot_rawp_s = sum(Dagb[!outlier & dbh >= 10],na.rm=T)/sum(agb[!outlier]))]
+
+# df_keep <- df_stem[!hom_change & Ddbh < 5 & Ddbh > -0.5]
+# df_keep[, `:=`(rawp = awp/agb, rbap = bap/ba)]
+# regr <- lm(data = df_keep, log(rawp - min(rawp)+1e-16) ~ log(dbh) * plot)
+# # pvalues < 10%?
+# any(summary(regr)$coefficients[grep("\\(dbh\\):", rownames(summary(regr)$coefficients)),4] < 0.1)
 ```
 
-For each stem in which one or more values of AGB change were substitute, the full time series of AGB is then reconstructed from outlier-substituted AGB change by taking the last AGB estimate as a starting point, and estimating prior AGB values by subtracting the estimated AGB changes. This could also be done by taking any other measurement as a reference (e.g. the first one); we opted to start with the last measurement because measurement quality is better in the later censuses. 
+<!-- For each stem in which one or more values of AGB change were substitute, the full time series of AGB is then reconstructed from outlier-substituted AGB change by taking the last AGB estimate as a starting point, and estimating prior AGB values by subtracting the estimated AGB changes. This could also be done by taking any other measurement as a reference (e.g. the first one); we opted to start with the last measurement because measurement quality is better in the later censuses.  -->
 
-```{r function-outlier-subs-corr-agb}
-reconstruct <- function(x, # variable (must be ordered by increasing year)
-                        dx,  # changes in the variable between two censuses
-                        ref = 1 # position of the "reference" value of x
-) {
-  # cumulative sum (omitting NAs)
-  cx <- cumsum(ifelse(is.na(dx), 0, dx)) + dx*0
-  cx <- c(0, cx[-length(cx)])
-  # reconstruct AGB
-  y <- x[ref] - cx[ref] + cx
-}
+<!-- ```{r function-outlier-subs-corr-agb} -->
+<!-- reconstruct <- function(x, # variable (must be ordered by increasing year) -->
+<!--                         dx,  # changes in the variable between two censuses -->
+<!--                         ref = 1 # position of the "reference" value of x -->
+<!-- ) { -->
+<!--   # cumulative sum (omitting NAs) -->
+<!--   cx <- cumsum(ifelse(is.na(dx), 0, dx)) + dx*0 -->
+<!--   cx <- c(0, cx[-length(cx)]) -->
+<!--   # reconstruct AGB -->
+<!--   y <- x[ref] - cx[ref] + cx -->
+<!-- } -->
 
-data.table::setorder(df_stem, year)
-df_stem[, agb_ts := reconstruct(agb_t, Dagb_ts*dT, length(dT)), .(stemID)]
-```
+<!-- data.table::setorder(df_stem, year) -->
+<!-- df_stem[, agb_ts := reconstruct(agb_t, Dagb_ts*dT, length(dT)), .(stemID)] -->
+<!-- ``` -->
 
-```{r ex-outlier-subs-corr-agb, echo = FALSE, fig.cap = "Example of a stem (stemID: 134) with excessive DBH growth. The original (black points) and outlier-corrected (red points) AGB values are shown on the y-axis."}
-dfcorr <- subset(df_stem, stemID==134)
-plot(x = dfcorr$year, y = dfcorr$agb_ts, col = 2, pch = 16, 
-     xlab = "Year", ylab = "AGB (Mg)", main = "StemID = 134", 
-     ylim = c(13,26))
-points(x = dfcorr$year, y = dfcorr$agb_t, pch = 16)
-``` 
+<!-- ```{r ex-outlier-subs-corr-agb, echo = FALSE, fig.cap = "Example of a stem (stemID: 134) with excessive DBH growth. The original (black points) and outlier-corrected (red points) AGB values are shown on the y-axis."} -->
+<!-- dfcorr <- subset(df_stem, stemID==134) -->
+<!-- plot(x = dfcorr$year, y = dfcorr$agb_ts, col = 2, pch = 16,  -->
+<!--      xlab = "Year", ylab = "AGB (Mg)", main = "StemID = 134",  -->
+<!--      ylim = c(13,26)) -->
+<!-- points(x = dfcorr$year, y = dfcorr$agb_t, pch = 16) -->
+<!-- ```  -->
 
 
 ### Estimating AGB mortality
