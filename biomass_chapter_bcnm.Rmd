@@ -72,7 +72,7 @@ if (!file.exists("cache.rda"))
 Biomass is the mass of all living things in an ecosystem.  The biomass of a forest is dominated by the aboveground woody parts of the trees, mainly the trunks and branches [@Muller-Landau2021]. Biomass is usually measured as oven-dried material, thus excluding water, and woody biomass is approximately half carbon [@Thomas2012]. Biomass has received much attention in recent decades due to increased interest in the global carbon cycle and the crucial role of forests in this cycle [@Mitchard2018]. This has led to an increase in the number of papers calculating forest biomass stocks, as well as biomass fluxes associated with tree growth and mortality [@Huang2020].
 
 The traditional method of estimating tree biomass is to measure the basic characteristics (such as diameter) of all trees in a given area, and combine these with allometric equations developed from destructive harvests. On Barro Colorado Island, a 50-ha plot was established in 1980 to regularly measure all stems of at least 1 cm in diameter, allowing for precise estimates of woody biomass in the plot and its changes over time. In this chapter, we will explore the results of 35 years of measurements on the plot, focusing on aboveground biomass stocks and fluxes: how to estimate them, their temporal and spatial variation on the plot, and their distribution across size classes and functional groups. We will then briefly discuss other woody biomass stocks and fluxes, including root and liana biomass. 
-    
+
 # Plot-based tree aboveground biomass methods
 
 <!-- * How to measure/calculate aboveground biomass stocks  -->
@@ -140,7 +140,7 @@ levels(df_agb$method) <- list("Chave 2005" = "chave05",
                               "Chave 2005 + height allom" = "chave05_h",
                               "Chave 2014 + height allom" = "chave14_h")
 
-fig1b_allom_plot <- ggplot(df_agb, aes(x = year, y = value, color = method)) +
+fig1b_allom_plot <- ggplot(df_agb, aes(x = year, y = tot, color = method)) +
   geom_point() + geom_line(lty = 2) + 
   theme_classic() +
   expand_limits(y = 0) +
@@ -366,16 +366,17 @@ ggpubr::ggarrange(fig3a_bis_groups_size, fig3b_bis_groups_pft,
 
 Biomass stocks and fluxes exhibit high small-scale spatial variability in the BCI 50 ha plot [@Rejou-Mechain2014]. This is especially true when all stocks and fluxes for a tree are assigned to the location of the trunk; the noisiness decreases when they are instead distributed across the estimated crown area [Figure \@ref(fig:fig4-spatial)a,b; @Mascaro2011a].  Topographically-defined habitats differ systematically in biomass and productivity [@Chave2003]. In particular, the high plateau and slope forests of the plot have both higher aboveground biomass and aboveground woody productivity (Figure \@ref(fig:fig4-spatial)). The swamp area of the plot has high estimated aboveground biomass, and low estimated biomass productivity, but this is an artefact of the way biomass and biomass productivity are estimated for palms in the absence of palm height data (mentioned above), combined with the high abundance of oil palms with very short stems in this area. In reality, biomass stocks in this area are considerably lower, and productivity is higher. A small portion of the 50-ha plot is composed of secondary forest (young forests in pink in Figure \@ref(fig:fig4-spatial)) and has thus lower aboveground biomass.
 
-```{r, fig4-spatial, fig.height = 8, fig.width = 12, fig.cap="Crown-distributed AGB (Mg/ha) and AWP (Mg/ha/yr) on the 50 ha plot, with habitat divisions as defined by @Harms2001. (a-b) Map of crown-distributed (a) AGB in the 2010 census and (b) AWP between the 2010 and 2015 censuses. Colors delineate the topographically defined habitats. (c-d) Mean (+/- standard errors of the means over 20 m quadrats) of (c) AGB and (d) AWP in each topographically defined habitat. The AGB and AWP of individual trees were distributed among 2x2m pixels in proportion to the area of intersection between the pixel and the estimated tree crown [crown radius calculated according to @MartinezCano2019]. The AGB and AWP of the portions of tree crowns that lie outside the edges were mirror-transposed into the pixels inside the plot to avoid underestimation of AGB and AWP at the edges of the plot (see Supplementary material)."}
+```{r, fig4-spatial, fig.height = 10, fig.width = 12, fig.cap="Crown-distributed AGB (Mg/ha) and AWP (Mg/ha/yr) on the 50 ha plot, with habitat divisions as defined by @Harms2001. (a-b) Map of crown-distributed (a) AGB in the 2010 census and (b) AWP between the 2010 and 2015 censuses. Colors delineate the topographically defined habitats. (c-d) Mean (+/- standard errors of the means over 20 m quadrats) of (c) AGB and (d) AWP in each topographically defined habitat. The AGB and AWP of individual trees were distributed among 2x2m pixels in proportion to the area of intersection between the pixel and the estimated tree crown [crown radius calculated according to @MartinezCano2019]. The AGB and AWP of the portions of tree crowns that lie outside the edges were mirror-transposed into the pixels inside the plot to avoid underestimation of AGB and AWP at the edges of the plot (see Supplementary material)."}
 
 df_crown$agb[df_crown$agb>1000] <- 1000
 df_crown$awp[df_crown$awp>30] <- 30
+df_crown$awp[df_crown$awp<00] <- 0
 
 ## get bci habitats from Harms et al 2001
 load("bci_habitat.rda")
 # change name of habitat to match publication: first letter in upper case and add spaces
 levels(bci_habitat$habitat) <- paste0(toupper(substr(levels(bci_habitat$habitat), 1, 1)), 
-                              substr(levels(bci_habitat$habitat), 2, nchar(levels(bci_habitat$habitat))))
+                                      substr(levels(bci_habitat$habitat), 2, nchar(levels(bci_habitat$habitat))))
 levels(bci_habitat$habitat) <- gsub("Hi_", "High ", levels(bci_habitat$habitat))
 levels(bci_habitat$habitat) <- gsub("_", " ", levels(bci_habitat$habitat))
 levels(bci_habitat$habitat) <- gsub("Young", "Young forest", levels(bci_habitat$habitat))
@@ -392,7 +393,7 @@ habitats <- raster::rasterToPolygons(r, dissolve = TRUE)
 habitats <- sf::st_as_sf(habitats) 
 habitats <- merge(habitats, unique(bci_habitat[, c("habitat", "habitat_f")]))
 habitats_buff <- sf::st_buffer( habitats, -2)
-           
+
 gagb <- ggplot(df_crown) + 
   geom_raster(aes(x = x, y = y, fill = agb)) +
   scale_fill_gradient(low = "black", high = "white", 
@@ -402,6 +403,7 @@ gagb <- ggplot(df_crown) +
   expand_limits(x = c(0, 1000), y = c(0, 500)) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
+  # scale_color_brewer(palette = "Set2") +
   theme_bw()
 # isolate legend
 legend1 <- ggpubr::as_ggplot(ggpubr::get_legend(gagb))
@@ -409,10 +411,12 @@ legend1 <- ggpubr::as_ggplot(ggpubr::get_legend(gagb))
 gagb <- gagb + 
   geom_sf(data = habitats_buff, aes(color = habitat), size = 1.4, fill = NA) +
   theme(legend.position = "none")
-  
-gcolor <- ggplot(habitats_buff, aes(color = habitat)) + geom_sf(fill = NA, size = 1.5)
+
+gcolor <- ggplot(habitats_buff, aes(color = habitat)) + 
+  # scale_color_brewer(palette = "Set1") +
+  geom_sf(fill = NA, size = 1.5)
 legend2 <- ggpubr::as_ggplot(ggpubr::get_legend(gcolor))
-  
+
 gawp <- ggplot(df_crown) + 
   geom_raster(aes(x = x, y = y, fill = awp))  +
   scale_fill_gradient(low = "black", high = "white",
@@ -422,6 +426,7 @@ gawp <- ggplot(df_crown) +
   expand_limits(x = c(0, 1000), y = c(0, 500)) +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
+  # scale_color_brewer(palette = "Set1") +
   theme_bw()
 # isolate gawp legend
 legend3 <- ggpubr::as_ggplot(ggpubr::get_legend(gawp))
@@ -449,6 +454,7 @@ gagb2 <- ggplot(subset(dfhab2, variable == "agb"),
                 aes(x=habitat, y = mean, ymin = mean-se, ymax = mean+se, col = habitat)) +
   geom_pointrange() +
   labs(x = "", y = "AGB (Mg/ha)") +
+  # scale_color_brewer(palette = "Set1") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), 
         legend.position = "none")
@@ -457,16 +463,32 @@ gawp2 <- ggplot(subset(dfhab2, variable == "awp"),
                 aes(x=habitat, y = mean, ymin = mean-se, ymax = mean+se, col = habitat)) +
   geom_pointrange() +
   labs(x = "", y = "AWP (Mg/ha/yr)") +
+  # scale_color_brewer(palette = "Set1") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), 
         legend.position = "none")
 
+# habitat map
+ghabitat <- ggplot(df_crown) +
+  geom_sf(data = habitats, aes(fill = habitat), size = 1.4) + 
+  labs(x = "", y = "") +
+  expand_limits(x = c(0, 1000), y = c(0, 500)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  # scale_color_brewer(palette = "Set1") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+gblank <- ggplot() +theme(panel.background = element_blank())
+
 # group graphs
-gmap <- ggpubr::ggarrange(gagb, gawp, nrow=2, labels = c("a","b"))
-gbar <- ggpubr::ggarrange(gagb2, gawp2, nrow=2, labels = c("c", "d"))
-legends <- ggpubr::ggarrange(legend1, legend2, legend3, nrow=3)
+gmap <- ggpubr::ggarrange(gagb, gawp, ghabitat, nrow=3, labels = c("a","b","c"))
+gbar <- ggpubr::ggarrange(gagb2, gawp2, gblank, nrow=3, labels = c("d", "e", ""), heights = c(3,3,2))
+legends <- ggpubr::ggarrange(legend1, legend3, legend2, nrow=3)
 
 ggpubr::ggarrange(gmap, legends, gbar, widths = c(4,1,2), ncol=3)
+
+ggsave("figures/fig4_new.png", height = 10, width = 12)
 ```
 
 <!-- *	Spatial variation in BCNM AGB stocks and fluxes from multiple plots, and experimental results  -->
