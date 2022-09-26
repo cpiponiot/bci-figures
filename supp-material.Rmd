@@ -249,7 +249,7 @@ df_stem[, dT := c(diff(year), NA), .(stemID)]
 
 # original data 
 df_stem[, Ddbh := c(diff(dbh)/diff(year), NA), .(stemID)]
-df_stem[, Dagb := c(diff(agb_t)/diff(year), NA), .(stemID)]
+df_stem[, Dagb := c(diff(agb)/diff(year), NA), .(stemID)]
 
 # taper corrected data
 df_stem[, Ddbh_t := c(diff(dbh_t)/diff(year), NA), .(stemID)]
@@ -344,29 +344,100 @@ df_stem[, Dagb_s := ifelse(outlier == TRUE, tot_rawp*agb, Dagb)]
 <!-- ```  -->
 
 
+### Estimating recruitment
+
+We added recruitment fluxes to aboveground woody productivity, as the biomass of all stems that were first measured in the next census. 
+<!-- We excluded AWP from trees recruited with DBH in cm greater than 10 + 5 * census interval in years, on the assumption that these are not truly new recruits.   -->
+
+```{r add-recruitment}
+# get previous measurement year_stem
+df_stem[, qyear := median(year), .(quadrat, census_year)]
+df_stem[, qdate := median(date), .(quadrat, census_year)]
+
+prev_year <- df_stem[, .(qyear = sort(unique(qyear)), qdate=sort(unique(qdate)),
+                         census_year=sort(unique(census_year))),  
+                     .(quadrat)]
+prev_year[, prevqyear := c(NA, qyear[-length(qyear)]), .(quadrat)]
+prev_year[, prevqdate := c(NA, qdate[-length(qdate)]), .(quadrat)]
+prev_year[, nextqdate := c(qdate[-1], NA), .(quadrat)]
+prev_year[, prevcyear := c(NA, census_year[-length(census_year)]), .(quadrat)]
+prev_year[, prevqdt := (qdate-prevqdate)/365.25]
+prev_year[, qdt := (nextqdate - qdate)/365.25]
+
+prev_year[quadrat=="", `:=`(prevqyear = 1985, prevqdate =  9196, nextqdate = 12878, 
+                            prevcyear = 1985, prevqdt = 5.4, qdt = 4.68)]
+
+
+df_stem <- merge(df_stem, prev_year[,c("quadrat","qyear","prevqyear","prevqdate", "nextqdate", 
+                                       "prevcyear","prevqdt", "qdt")], 
+                 by = c("quadrat", "qyear"))
+
+# identify first measurement 
+df_stem[, fmeas := (date == min(date)), .(stemID)]
+recr <- df_stem[fmeas & census_year > 1985]
+
+## check: recruits are small enough, their total biomass is not too large; exception is palms and secondary stems can recruit at large sizes
+large_recruits <- recr[dbh > 10 + 7.5*prevqdt & StemTag==1 & Family != "Arecaceae", 
+                       c("census_year", "sp", "Genus", "Species","treeID", "StemTag", 
+                         "stemID", "qyear", "prevqyear","prevqdt", "dbh", "hom")]
+large_recruits <- large_recruits[order(sp,census_year),]
+large_recruits_all <- df_stem[treeID %in% large_recruits$treeID, ]
+large_recruits_all <- large_recruits_all[order(large_recruits_all$sp,large_recruits_all$treeID,
+                                               large_recruits_all$year,large_recruits_all$stemID),]
+
+## solve problem
+# recr <- recr[dbh < 10+7.5*prevqdt | StemTag>1 | Family=="Arecaceae"]
+
+# change values: growth = agb value in next census / census interval, agb = 0,
+# year = previous census year
+recr[, `:=`(qyear = prevqyear, 
+            year = prevqyear, 
+            census_year = prevcyear,
+            qdate = prevqdate,
+            dT = prevqdt,
+            date = NA, 
+            year_stem = prevqyear,
+            ExactDate = NA,
+            DFstatus = "recruit",
+            hom = NA,
+            dbh = dbh,
+            dbh_t = dbh_t,
+            chave05 = 0, 
+            chave05_h = 0, 
+            chave14 = 0, 
+            chave14_h = 0, 
+            agb = 0, 
+            agb_t = 0, 
+            Dagb = agb/prevqdt,
+            Dagb_t = agb_t/prevqdt,
+            Dagb_s = agb/prevqdt
+)]
+
+# combine with stem data
+df_stem <- rbind(df_stem, recr[, colnames(df_stem), with = FALSE])
+```
+
+
 ### Estimating AGB mortality
 
 Stems' aboveground woody mortality is zero when the stem is alive, and their AGB value (divided by the census interval) when they haven't been measured in the next census. 
 
 ```{r mortality}
+# mortality census for each year (ie last census during which the stem was measured)
 df_year_mort <- df_stem[, .(
-  year_mort = max(year)
+  census_mort = max(census_year)
 ), .(stemID)]
 
 df_stem <- merge(df_stem, df_year_mort, by = "stemID", all = TRUE)
 
-# census interval estimated per quadrat
-year_quadrat <- df_stem[, .(year = median(year)), .(quadrat, census_year)]
-year_quadrat <-
-  year_quadrat[order(year), .(census_year, dTq = c(diff(year), NA)), .(quadrat)]
-
-df_stem <- merge(df_stem, year_quadrat, by = c("quadrat", "census_year"), all = TRUE)
-
 df_stem[, `:=`(
-  DagbM = agb * (!is.na(year_mort) & census_year == year_mort) / dTq,
-  DagbM_t = agb_t * (!is.na(year_mort) & census_year == year_mort) / dTq
+  DagbM = agb * (!is.na(census_mort) & census_year == census_mort) / qdt,
+  DagbM_t = agb_t * (!is.na(census_mort) & census_year == census_mort) / qdt
 )]
-``` 
+
+## RM the missing stems are not considered as dead but are not accounted for in total biomass
+```
+
 
 ## Aggregating plot-level AGB 
 
@@ -383,7 +454,7 @@ df_stem_melt <-
     variable.name = "method",
   )
 
-df_stem_melt <- subset(df_stem_melt, value > 0 & !is.na(value))
+df_stem_melt <- subset(df_stem_melt, !is.na(value))
 
 # create variables: agb, awp, awm
 df_stem_melt[, variable := c("agb", "awp", "awm")[1 + grepl("Dagb", method) + grepl("agbM", method)]]
@@ -398,6 +469,59 @@ df_stem_melt_subs <- df_stem_melt[variable %in% c("agb", "awm") & method == "cha
 df_stem_melt_subs[, method := "chave14_h+subs"]
 df_stem_melt <- rbind(df_stem_melt, df_stem_melt_subs)
 ```
+
+
+<!-- ```{r some-tests} -->
+<!-- list_status = lapply(seq(1985, 2010, 5), function(cns) { -->
+<!--   test = df_stem[, .( -->
+<!--     alive = all(c(cns, cns+5) %in% census_year), -->
+<!--     recr = min(census_year) == (cns + 5), -->
+<!--     dead = (unique(census_mort)==cns), -->
+<!--     missing2 = (cns %in% census_year) & !((cns + 5) %in% census_year) & unique(census_mort) > cns, # stems missing in this census -->
+<!--     missing1 = !(cns %in% census_year) & ((cns + 5) %in% census_year) & min(census_year) < (cns + 5), # stems missing in next census -->
+<!--     agb = agb[census_year==cns], -->
+<!--     agb_n = agb[census_year==cns+5]), -->
+<!--     .(stemID)] -->
+
+<!--   test = test[alive|dead|recr|missing1|missing2] -->
+
+<!--   df = melt(test, id.vars = c("stemID", "agb", "agb_n"), measure.vars = c("alive", "recr", "missing1", "missing2", "dead"), variable.name = "status") -->
+<!--   df = subset(df, value==TRUE)[, -"value"] -->
+
+<!--   df_tot = df[, .(agb = sum(agb)/50, agb_n = sum(agb_n)/50), .(status)] -->
+<!--   return(df_tot) -->
+<!-- }) -->
+
+<!-- names(list_status) = seq(1985, 2010, 5) -->
+
+<!-- df_tot = rbindlist(list_status, idcol="year") -->
+
+<!-- df_tot[, .(sum(agb_n, na.rm=TRUE)), .(year)] -->
+<!-- df_plot[method=="chave14_h" & variable=="agb"] -->
+
+<!-- df1 = df_tot[, .(growth = (sum(agb_n[status=="alive"]) - sum(agb[status=="alive"]))/5, -->
+<!--                  awp = (sum(agb_n[status %in% c("recr", "alive")], na.rm = TRUE) -  -->
+<!--                           sum(agb[status %in% c("recr", "alive")], na.rm = TRUE))/5, -->
+<!--                  awm = (sum(agb[status =="dead"], na.rm = TRUE) )/5, -->
+<!--                  recr = sum(agb_n[status %in% c("recr") ])/5), .(year = as.numeric(year))] -->
+
+<!-- df2 = df_stem[, .( -->
+<!--   growth = sum(Dagb[agb!=0], na.rm = TRUE)/50,  -->
+<!--   recr = sum(Dagb[agb==0], na.rm = TRUE)/50,  -->
+<!--   awm = sum(DagbM, na.rm = TRUE)/50,  -->
+<!--   awp = sum(Dagb, na.rm = TRUE)/50),  -->
+<!--   .(year = census_year)] -->
+
+<!-- df3 = df_plot[method=="chave14_h" & variable=="awm"] -->
+
+<!-- df4 = df_stem_melt[, .( -->
+<!--   awp = sum(value[variable=="awp"])/50), -->
+<!--   .(year = census_year, method)] -->
+<!-- df4 = subset(df4, awp!=0) -->
+
+<!-- merge(df2, df1, by = "year") -->
+<!-- merge(df2, df3[, c("year", "tot")], by = "year") -->
+<!-- ``` -->
 
 Finally, we apply the correction proposed by @Kohyama2019 to correct estimates of woody productivity for unrecorded growth between two censuses. 
 
@@ -527,9 +651,9 @@ To group species into functional groups we used plant functional types as descri
 if (!file.exists("ruger_data_s1.xlsx")) {
   ruger_url <- "https://www.science.org/doi/suppl/10.1126/science.aaz4797/suppl_file/aaz4797_ruger_data_s1.xlsx"
   download.file(ruger_url, destfile = "ruger_data_s1.xlsx", mode = "wb")
-  ruger_data <- openxlsx::read.xlsx("ruger_data_s1.xlsx", sheet = "Data")
-}
+} 
 
+ruger_data <- openxlsx::read.xlsx("ruger_data_s1.xlsx", sheet = "Data")
 ruger_data$sp <- tolower(ruger_data$sp)
 
 # change PFT names
@@ -565,10 +689,12 @@ df_pft <- aggregate_agb_dyn("PFT", area = 50, nboot = 1000)
 ```{r rubio-2022}
 # download supporting information file (word doc) from Rubio et al 2022 
 # https://besjournals.onlinelibrary.wiley.com/doi/10.1111/1365-2745.13795
-rubio_url <- "https://besjournals.onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1111%2F1365-2745.13795&file=jec13795-sup-0001-Supinfo.docx"
+if (!file.exists("ruger_data_s1.xlsx")) {
+  rubio_url <- "https://besjournals.onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1111%2F1365-2745.13795&file=jec13795-sup-0001-Supinfo.docx"
+  # extract table s1 from doc
+  download.file(rubio_url, destfile = "rubio_si.docx", mode = "wb")
+}
 
-# extract table s1 from doc
-download.file(rubio_url, destfile = "rubio_si.docx", mode = "wb")
 rubio_si <- docxtractr::read_docx("rubio_si.docx") 
 rubio_tab <- docxtractr::docx_extract_tbl(rubio_si, 1)
 
