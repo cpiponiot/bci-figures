@@ -1,13 +1,19 @@
 library(ggplot2)
+library(data.table)
 load("cache.rda")
+
+df  = dcast(df_plot, method + year ~variable, value.var = "tot")
+df = subset(df, !is.na(agb) & !is.na(awp))
+df[, dagb2 := awp-awm]
 
 ## New figure 1 ####
 
 # prepare data for the figure
-dfig <- subset(df_plot, method == "chave14_h+subs")
+dfig <- subset(df_plot, method == "chave14_h")
 # intermediate census years for agb fluxes
 dfig[variable != "agb", year := year + 2.5]
-
+dfig[variable == "awp", year := year - 0.05]
+dfig[variable == "awm", year := year + 0.05]
 
 dfig$var_group <- as.character(dfig$variable)
 dfig$var_group[dfig$variable %in% c("awp", "awm")] <- "flux"
@@ -18,63 +24,27 @@ levels(dfig$variable) <- toupper(levels(dfig$variable))
 dfig$var_group <- factor(dfig$var_group)
 levels(dfig$var_group) <- c("'AGB (Mg/ha)'", "Delta*'AGB (Mg/ha/yr)'", "'AWP or AWM (Mg/ha/yr)'")
 
-gs <- ggplot2::ggplot(subset(dfig, variable=="AGB"), ggplot2::aes(x = year, y = tot)) +
-  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr)) +
-  ggplot2::labs(x = "", y = "") +
-    ggplot2::theme_classic() +
-    ggplot2::theme(strip.placement = "outside",
-                   strip.background = element_blank(),
-                   legend.position = "none",
-                   plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
-    ggplot2::facet_wrap(~var_group, scales = "free", strip.position = "left", ncol=1, labeller = label_parsed)
+## panel labels
+ann_panels <- data.frame(text = letters[1:3], var_group = factor(levels(dfig$var_group), levels = levels(dfig$var_group)))
 
-gd <- ggplot2::ggplot(subset(dfig, variable=="DAGB"), ggplot2::aes(x = year, y = tot)) +
-  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr)) +
-  ggplot2::geom_hline(yintercept = 0, lty = 2) +
-  ggplot2::labs(x = "", y = "") +
-  ggplot2::theme_classic() +
-  ggplot2::theme(strip.placement = "outside",
-                 strip.background = element_blank(),
-                 legend.position = "none",
-                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
-  ggplot2::facet_wrap(~var_group, scales = "free", strip.position = "left", ncol=1, labeller = label_parsed)
+## horizontal line
+ann_line <- data.frame(line = 0, var_group = factor(levels(dfig$var_group)[2], levels = levels(dfig$var_group)))
 
-gf <- ggplot2::ggplot(subset(dfig, variable %in% c("AWP", "AWM")),
-                      ggplot2::aes(x = year, y = tot, color = variable)) +
-  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr)) +
+ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) +
+  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = variable)) +
   ggplot2::labs(x = "", y = "", color = "") +
+  ggplot2::geom_text(data = ann_panels, aes(label = text), x = -Inf, y = Inf, hjust = 5, vjust = 0.5, size = 5) +
+  ggplot2::geom_hline(data = ann_line, aes(yintercept = line), lty = 2) + ## add horizontal line to delta AGB
   ggplot2::theme_classic() +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  ggplot2::scale_color_discrete(breaks = c("AWP", "AWM"), type = c("black", "black", "cyan4", "coral2")) +
   ggplot2::theme(strip.placement = "outside",
                  strip.background = element_blank(),
-                 legend.position = c(0.8, 0.2),
+                 legend.position = c(0.9, 0.3),
                  plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
-  ggplot2::facet_wrap(~var_group, scales = "free", strip.position = "left", ncol=1, labeller = label_parsed)
+  ggplot2::facet_wrap(~var_group, scales = "free_y", strip.position = "left", ncol=1, labeller = label_parsed)
 
-# ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot, color = variable)) +
-#   ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr)) +
-#   ggplot2::labs(x = "", y = "", color = "") +
-#   ggplot2::theme_classic() +
-#   ggplot2::theme(strip.placement = "outside",
-#                  strip.background = element_blank(),
-#                  legend.position = c(0.8, 0.2),
-#                  plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
-#   ggplot2::facet_wrap(~var_group, scales = "free", strip.position = "left", ncol=1, labeller = label_parsed)
-
-ggpubr::ggarrange(gs, gd, gf, ncol=1, labels = "auto")
-
-# 
-# ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) + 
-#   ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr)) +
-#   ggplot2::facet_wrap(~ variable, scales = "free") +
-#   ggplot2::labs(y = "", x = "") +
-#   ggplot2::theme_classic() +
-#   ggplot2::theme(strip.placement = "outside",
-#                  strip.background = element_blank(),
-#                  legend.position = "none",
-#                  plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
-#   ggplot2::facet_wrap(~variable, scales = "free", strip.position = "left", ncol=1, labeller = label_parsed)
-
-ggsave("figures/new_fig1.png", height = 10, width = 4)
+ggsave("figures/new_fig1.png", height = 6, width = 6)
 
 
 # associated table
@@ -107,9 +77,16 @@ levels(df_size$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
 # revert order of size classes to have bigger trees above
 df_size$size <- factor(df_size$size, levels = rev(levels(df_size$size)))
 
+## panel labels
+ann_panels <- data.frame(text = letters[1:3], 
+                         h = c(4, 3, 4), v = 0.5,
+                         variable = factor(levels(df_size$variable), 
+                                           levels = levels(df_size$variable)))
 
 fig3a_bis_groups_size <- ggplot(df_size) + 
   geom_col(aes(x = year, y = tot, fill = size)) + 
+  ggplot2::geom_text(data = ann_panels, aes(label = text, hjust = h, vjust = v), x = -Inf, y = Inf, size = 5) +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
   labs(x = "", y = "", fill = "Diameter\nclass (cm)") +
   scale_y_continuous(expand = c(0, 0)) +  
   scale_fill_brewer(palette = "RdYlBu") +
@@ -126,6 +103,12 @@ df_pft[variable != "agb", year := year + 2.5]
 
 levels(df_pft$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
 
+## panel labels
+ann_panels <- data.frame(text = letters[4:6], 
+                         h = c(4, 3, 5), v = 0.5,
+                         variable = factor(levels(df_pft$variable), 
+                                           levels = levels(df_pft$variable)))
+
 # order and rename PFT 
 df_pft$PFT[is.na(df_pft$PFT)] <- "NA"
 df_pft$PFT <- factor(df_pft$PFT, levels = c("slow", "fast", "LLP", "SLB", "intermediate", "NA"))
@@ -137,6 +120,8 @@ levels(df_pft$PFT) <- list("Slow" = "slow", "Fast" = "fast",
 
 fig3b_bis_groups_pft <- ggplot(df_pft) + 
   geom_col(aes(x = year, y = tot, fill = PFT)) + 
+  ggplot2::geom_text(data = ann_panels, aes(label = text, hjust = h, vjust = v), x = -Inf, y = Inf, size = 5) +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
   labs(x = "", y = "", fill = "PFT \n(Ruger et al., 2020)") +
   scale_y_continuous(expand = c(0, 0)) +  
   scale_fill_manual(values = c("orchid", "gold", "seagreen", "royalblue", "darkorange", "grey")) +
@@ -161,9 +146,16 @@ levels(df_pft2$FG) <- list("Short shade-tolerants" = "1",
                            "Tall shade-tolerants" = "2", 
                            "Tall pioneers" = "3",
                            "No value" = "NA")
+## panel labels
+ann_panels <- data.frame(text = letters[7:9], 
+                         h = c(4, 3, 7), v = 0.5,
+                         variable = factor(levels(df_pft2$variable), 
+                                           levels = levels(df_pft2$variable)))
 
 fig3c_bis_groups_pft2 <- ggplot(df_pft2) + 
   geom_col(aes(x = year, y = tot, fill = FG)) + 
+  ggplot2::geom_text(data = ann_panels, aes(label = text, hjust = h, vjust = v), x = -Inf, y = Inf, size = 5) +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
   labs(x = "", y = "", fill = "FG \n(Rubio & Swenson, 2022)") +
   scale_y_continuous(expand = c(0, 0)) +  
   scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "grey")) +
@@ -182,7 +174,7 @@ ggpubr::ggarrange(fig3a_bis_groups_size + theme(legend.position = "none"), fig3a
                   fig3c_bis_groups_pft2 + theme(legend.position = "none"), fig3c_leg,
                   ncol = 2, nrow = 3, widths = c(4,1))
 
-ggsave("figures/fig3_new.png", height = 10, width = 10)
+ggsave("figures/fig3_new.png", height = 8, width = 10)
 
 
 ## Revised figure 4 ####
@@ -349,8 +341,8 @@ sawm <- ggplot(subset(sullivan_mul, Mort < 22), aes(x = Mort)) +
 
 sdagb <- ggplot(subset(sullivan_mul, Mort < 20), aes(x = AGWP-Mort)) + 
   geom_density(alpha = 0.5, aes(fill = Continent)) +
-  geom_vline(col=2, xintercept = df_mean$awp-df_mean$awm) +
-  annotate(geom = "text", col = 2, label = "BCI", x = (df_mean$awp-df_mean$awm)+2, y = 0, vjust = -1) +
+  geom_vline(col=2, xintercept = df_mean$dagb) +
+  annotate(geom = "text", col = 2, label = "BCI", x = (df_mean$dagb)+2, y = 0, vjust = -1) +
   labs(x = bquote(Delta*'AGB (Mg/ha/yr)'), y = "") +
   scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) +
