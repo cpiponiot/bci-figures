@@ -543,7 +543,8 @@ kohyama_correction <- function(stock, gain, loss, dT, output = "prod") {
 Below is a function that aggregates AGB and AWP values according to a grouping factor, and applies the correction from @Kohyama2019. 
 
 ```{r aggr-agb-dyn-function}
-aggregate_agb_dyn <- function(group, # grouping factor
+aggregate_agb_dyn <- function(data = df_stem_melt, 
+                              group, # grouping factor
                               area,  # unit area 
                               nboot = 0, # bootstrap over quadrats?
                               kohyama = FALSE, # apply the Kohyama et al 2019 correction?
@@ -553,8 +554,8 @@ aggregate_agb_dyn <- function(group, # grouping factor
   # get long format table with aggregated values 
   if (nboot > 0) {
     
-    df <- df_stem_melt[,  .(value = sum(value) / area),
-                       .(variable, year = census_year, group = get(group), quadrat)]
+    df <- data[,  .(value = sum(value) / area),
+               .(variable, year = census_year, group = get(group), quadrat)]
     
     # wide format for kohyama correction
     df <- data.table::dcast(df, year + group + quadrat ~ variable)
@@ -565,8 +566,8 @@ aggregate_agb_dyn <- function(group, # grouping factor
     
   } else {
     
-    df <- df_stem_melt[,  .(value = sum(value) / area),
-                       .(variable, year = census_year, group = get(group))]
+    df <- data[,  .(value = sum(value) / area),
+               .(variable, year = census_year, group = get(group))]
     
     # wide format for kohyama correction
     df <- data.table::dcast(df, year + group ~ variable)
@@ -609,6 +610,8 @@ bootstrap_q <-  function(x, k, pb = c(0.025, 0.975)) {
 }
 ```
 
+### Entire plot 
+
 We first estimated the plot-level annual AGB and AWP for each method used. 
 
 ```{r aggr-by-methods}
@@ -639,11 +642,15 @@ For all other aggregated AGB data, we used taper-corrected DBHs, the @Chave2014 
 df_stem_melt <- subset(df_stem_melt, method == "chave14_h+subs")
 ```
 
+### By size
+
 We also calculated the mean AGB and AWP by size class over all years. 
 
 ```{r aggr-by-size}
 df_size <- aggregate_agb_dyn(group = "size", area = 50, nboot = 1000)
 ```
+
+### By plant functional type
 
 To group species into functional groups we used plant functional types as described in @Ruger2020. The data was downloaded from their supplementary material. 
 
@@ -684,7 +691,7 @@ df_pft <- aggregate_agb_dyn("PFT", area = 50, nboot = 1000)
 
 <!-- Powell et al 2018: not real data (uses 1 value per PFT) -->
 
-#### Test other deifinition of plant functional types: Rubio et al 2022
+#### Test other definition of plant functional types: Rubio et al 2022
 
 ```{r rubio-2022}
 # download supporting information file (word doc) from Rubio et al 2022 
@@ -755,13 +762,36 @@ df_stem_melt <- merge(df_stem_melt, rubio_tab, by = "sp", all.x = TRUE)
 df_pft2 <- aggregate_agb_dyn("FG", area = 50, nboot = 1000)
 ``` 
 
+### By habitat 
+
+We first merged the habitat data with the census data based on quadrat information, then aggregated 
+
+```{r get-bci-habitats}
+load("bci_habitat.rda")
+
+# change quadrat name in census data to match habitat data
+df_stem_melt[, q20 := as.numeric(quadrat)]
+
+## Merge with census data
+df_stem_melt <- merge(df_stem_melt, bci_habitat[, c("q20", "habitat")], by = "q20", all.x = TRUE)
+
+# aggregate, unit area = area of a quadrat (in ha)
+df_hab <- aggregate_agb_dyn("habitat", area = 0.04, nboot = 1000)
+df_hab <- subset(df_hab, !is.na(habitat))
+
+# divide by number of quadrats in each habitat
+df_hab[, `:=`(tot = tot/sum(bci_habitat$habitat==habitat), 
+              lwr = lwr/sum(bci_habitat$habitat==habitat), 
+              upr = upr/sum(bci_habitat$habitat==habitat)), .(habitat)]
+```
+
 
 ## Crown-distributed AGB and AWP
 
 We defined a function (`dist_crowns`) that distributes the aboveground biomass and woody productivity of each tree over its estimated crown area. Each crown is centered on the mapped trunk location, and the radius of the crown is calculated based on the multi-species crown allometry from @MartinezCano2019. The function first creates a grid of pixels of a given width (here set to 2m) over the entire plot. In order to avoid underestimating the AGB and AWP at the plot edges, the grid also includes pixels outside the plot boundaries where the crowns of trees from within the plot fall. The AGB and AWP of each pixel are then calculated as the sum of the taper-corrected AGB (or taper- and outlier-corrected AWP) of each tree multiplied by the proportion of the tree’s crown that is within the pixel. The AGB and AWP of the pixels outside the plot boundaries are then mirrored back into the plot by adding them to the opposite pixels inside the plot boundaries.
 
 
-```{r dist-crowns}
+```{r dist-crowns-function}
 # get crown distributed aboveground biomass density
 dist_crowns <- function(wpix, # height of pixels in m
                         gx, gy, # position of trees in the plot, in m
@@ -891,28 +921,102 @@ area_circle_square <- function(x0, y0, w, cx, cy, r)
                area_inf(x0, x1, 0, r) - area_inf(x0, x1, y1, r))
   }
 }
+```
 
+
+### For visualization: pixels of 2x2m; only 2010
+
+```{r crown-distribution-visualisation}
 dftemp <- df_stem[year==2010]
 
 # crown allometry from Martinez Cano et al., 2019
 dftemp[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ]
 dftemp[, dbh_t := NULL]
 
-df_crown <- dist_crowns(wpix = 2,
-                        gx = dftemp$gx,
-                        gy = dftemp$gy,
-                        rcrown = dftemp$rcrown,
-                        values = list(dftemp$agb, 
-                                      dftemp$Dagb_s, 
-                                      dftemp$DagbM))
+df_crown_vis <- dist_crowns(wpix = 2,
+                            gx = dftemp$gx,
+                            gy = dftemp$gy,
+                            rcrown = dftemp$rcrown,
+                            values = list(dftemp$agb, 
+                                          dftemp$Dagb_s, 
+                                          dftemp$DagbM))
 colnames(df_crown)[3:5] <- c("agb", "awp", "awm")
 ```
 
+### For analysis: per quadrat, then aggregate values per habitat
+
+We first distribute AGB, AWP and AWM values of each tree over its estimated crown area, and intersect it with 20x20m quadrats. We apply this to each census year and census interval. 
+
+```{r crown-distribution-analysis}
+# crown allometry from Martinez Cano et al., 2019
+df_stem[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ]
+
+df_crown_list <- lapply(seq(1985, 2015, 5), function(cns) {
+  df <- df_stem[census_year==cns & !is.na(gx)]
+  dist_crowns(wpix = 20, gx = df$gx, gy = df$gy,
+              rcrown = df$rcrown,
+              values = list(df$agb, df$Dagb_s, df$DagbM))
+})
+
+names(df_crown_list) <- seq(1985, 2015, 5)
+df_crown_hab <- data.table::rbindlist(df_crown_list, idcol = "year")
+df_crown_hab[, year := as.numeric(year)]
+
+colnames(df_crown_hab)[colnames(df_crown_hab) == paste0("value", 1:3)] <- c("agb", "awp", "awm")
+```
+
+We then merge these crown-distributed values with the habitat information. 
+
+```{r merge-crown-dist-with-habitat}
+load("bci_habitat.rda")
+
+# change q20 coordinates to match quadrat center
+bci_habitat$x <- bci_habitat$x + 10
+bci_habitat$y <- bci_habitat$y + 10
+
+## Merge with census data
+df_crown_hab <- merge(df_crown_hab, bci_habitat, by = c("x", "y"), all = TRUE)
+
+df_crown_hab[order(year), dagb := c(diff(agb)/diff(year), NA), .(q20)]
+
+kohyama <- FALSE
+if (kohyama) {
+  # avoid NAs and change them into zeros (no observation = null flux)
+  df_crown_hab[is.na(awp) & year != max(year), awp := 0]
+  df_crown_hab[is.na(awm) & year != max(year), awm := 0]
+  # apply Kohyama correction 
+  df_crown_hab[order(year), dT := c(diff(year), NA), .(q20)]
+  df_crown_hab[, awp := kohyama_correction(agb, awp, awm, dT, output = "prod")]
+  df_crown_hab[, awm := kohyama_correction(agb, awp, awm, dT, output = "mort")]
+}
+
+# to long format
+df_crown_hab <- data.table::melt(df_crown_hab, 
+                                 measure.vars = grep("agb|aw", colnames(df_crown_hab), value  = TRUE), 
+                                 id.vars = c("habitat", "q20", "year"))
+df_crown_hab <- subset(df_crown_hab, !is.na(value))
+
+# bootstrap 
+n = 1000
+if (n > 0) {
+  df_crown_hab <- df_crown_hab[, .(tot = sum(value),
+                                   lwr = bootstrap_q(value, nboot, pb = 0.025), 
+                                   upr = bootstrap_q(value, nboot, pb = 0.975)), 
+                               .(habitat, year, variable)]
+}
+
+# divide by number of quadrats in each habitat
+df_crown_hab[, `:=`(tot = tot/sum(bci_habitat$habitat==habitat), 
+                    lwr = lwr/sum(bci_habitat$habitat==habitat), 
+                    upr = upr/sum(bci_habitat$habitat==habitat)), .(habitat)]
+```
+
+# Save results 
 
 ```{r save-results, echo = FALSE}
 df_ind <- subset(df_stem, stemID %in% c(2031, 3671, 1428))
 
-save(df_plot, df_size, df_pft, df_pft2, df_ind, df_crown, file = "cache.rda")
+save(df_plot, df_size, df_pft, df_pft2, df_ind, df_hab, df_crown, df_crown_hab, file = "cache.rda")
 ```
 
 
