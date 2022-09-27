@@ -291,7 +291,119 @@ ggpubr::ggarrange(gmap, gbar, widths = c(2,1), ncol=2)
 ggsave("figures/fig4_new.png", height = 10, width = 12)
 
 
-### New figure 2 - BCI in comparison to other plots ####
+
+## New figures 4 ####
+
+
+### 4-A-nocrown ####
+load("cache.rda")
+
+# prepare data for the figure
+dfig <- df_hab[variable %in% c("agb", "awp")]
+# intermediate census years for agb fluxes
+dfig[variable != "agb", year := year + 2.5]
+# dfig[variable == "awp", year := year - 0.05]
+# dfig[variable == "awm", year := year + 0.05]
+
+dfig$variable <- factor(dfig$variable, levels = c("agb", "awp"))
+levels(dfig$variable) <- c("'AGB (Mg/ha)'", 
+                           "'AWP (Mg/ha/yr)'")
+
+## panel labels
+ann_panels <- data.frame(text = letters[1:2], variable = factor(levels(dfig$variable), levels = levels(dfig$variable)))
+
+ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) +
+  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = habitat)) +
+  ggplot2::labs(x = "", y = "", color = "") +
+  ggplot2::geom_text(data = ann_panels, aes(label = text), x = -Inf, y = Inf, hjust = 5, vjust = 0.5, size = 5) +
+  ggplot2::theme_classic() +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  ggplot2::theme(strip.placement = "outside",
+                 strip.background = element_blank(),
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~variable, scales = "free_y", strip.position = "left", ncol=1, labeller = label_parsed)
+
+ggsave("figures/fig4_optionA_nocrown.png", height = 5, width = 8)
+
+### 4-B-nocrown ####
+
+dfig <- dfig[, .(tot = mean(tot), lwr = mean(lwr),  upr = mean(upr)), .(habitat, variable)]
+
+g1 <- ggplot2::ggplot(dfig, ggplot2::aes(x = habitat, y = tot)) +
+  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = habitat)) +
+  ggplot2::labs(x = "", y = "", color = "") +
+  ggplot2::geom_text(data = ann_panels, aes(label = text), x = -Inf, y = Inf, hjust = 5, vjust = 0.5, size = 5) +
+  ggplot2::theme_classic() +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  ggplot2::theme(strip.placement = "outside",
+                 strip.background = element_blank(),
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15),
+                 axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), 
+                 legend.position = "none") +
+  ggplot2::facet_wrap(~variable, scales = "free_y", strip.position = "left", ncol=1, labeller = label_parsed)
+
+ggpubr::ggarrange(g1, ghabitat, ncol=1, labels = c("", "c"), heights = c(2,1))
+
+ggsave("figures/fig4_optionB_nocrown.png", height = 7, width = 6)
+
+
+### 4-A-crown ####
+load("cache.rda")
+
+# prepare data for the figure
+dfig <- df_crown_hab[variable %in% c("agb", "awp")]
+# intermediate census years for agb fluxes
+dfig[variable != "agb", year := year + 2.5]
+# dfig[variable == "awp", year := year - 0.05]
+# dfig[variable == "awm", year := year + 0.05]
+
+dfig$variable <- factor(dfig$variable, levels = c("agb", "awp"))
+levels(dfig$variable) <- c("'AGB (Mg/ha)'", 
+                           "'AWP (Mg/ha/yr)'")
+
+levels(dfig$habitat) <- paste0(toupper(substr(levels(dfig$habitat), 1, 1)), 
+                               substr(levels(dfig$habitat), 2, nchar(levels(dfig$habitat))))
+levels(dfig$habitat) <- gsub("Hi_", "High ", levels(dfig$habitat))
+levels(dfig$habitat) <- gsub("_", " ", levels(dfig$habitat))
+levels(dfig$habitat) <- gsub("Young", "Young forest", levels(dfig$habitat))
+
+## panel labels
+ann_panels <- data.frame(text = letters[1:3], variable = factor(levels(dfig$variable), levels = levels(dfig$variable)))
+
+ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) +
+  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = habitat)) +
+  ggplot2::labs(x = "", y = "", color = "") +
+  ggplot2::geom_text(data = ann_panels, aes(label = text), x = -Inf, y = Inf, hjust = 5, vjust = 0.5, size = 5) +
+  ggplot2::theme_classic() +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  ggplot2::theme(strip.placement = "outside",
+                 strip.background = element_blank(),
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~variable, scales = "free_y", strip.position = "left", ncol=1, labeller = label_parsed)
+
+ggsave("figures/fig4_optionA_crown.png", height = 5, width = 8)
+
+### 4-B-crown ####
+dfig <- dfig[, .(tot = mean(tot), lwr = mean(lwr),  upr = mean(upr)), .(habitat, variable)]
+
+g1 <- ggplot2::ggplot(dfig, ggplot2::aes(x = habitat, y = tot)) +
+  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = habitat)) +
+  ggplot2::labs(x = "", y = "", color = "") +
+  ggplot2::geom_text(data = ann_panels, aes(label = text), x = -Inf, y = Inf, hjust = 5, vjust = 0.5, size = 5) +
+  ggplot2::theme_classic() +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  ggplot2::theme(strip.placement = "outside",
+                 strip.background = element_blank(),
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15),
+                 axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), 
+                 legend.position = "none") +
+  ggplot2::facet_wrap(~variable, scales = "free_y", strip.position = "left", ncol=1, labeller = label_parsed)
+
+ggpubr::ggarrange(g1, ghabitat, ncol=1, labels = c("", "c"), heights = c(2,1))
+
+ggsave("figures/fig4_optionB_crown.png", height = 7, width = 6)
+
+## New figure 2 - BCI in comparison to other plots ####
 
 if (!dir.exists("MSullivan2020")) {
   # download data from Sullivan et al 2020
