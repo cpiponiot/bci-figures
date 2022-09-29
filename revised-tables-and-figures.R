@@ -47,21 +47,6 @@ ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) +
 ggsave("figures/new_fig1.png", height = 6, width = 6)
 
 
-# associated table
-
-# prepare data for the figure
-dtab <- subset(df_plot, method == "chave14_h+subs")
-
-dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
-
-dtab <- data.table::dcast(dtab, year ~ variable, value.var = "value")
-
-dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
-
-knitr::kable(dtab, col.names = c("Census year", "Census interval", "AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)"))
-
-
-
 # Revised Figure 3 - AGB per group ####
 
 load("cache.rda")
@@ -403,6 +388,7 @@ ggpubr::ggarrange(g1, ghabitat, ncol=1, labels = c("", "c"), heights = c(2,1))
 
 ggsave("figures/fig4_optionB_crown.png", height = 7, width = 6)
 
+
 ## New figure 2 - BCI in comparison to other plots ####
 
 if (!dir.exists("MSullivan2020")) {
@@ -464,3 +450,107 @@ sdagb <- ggplot(subset(sullivan_mul, Mort < 20), aes(x = AGWP-Mort)) +
 ggpubr::ggarrange(sagb, sdagb, sawp,sawm, ncol=2, nrow = 2, labels = "auto")
 
 ggsave("figures/new_fig2.png", height = 6, width = 8)
+
+
+
+# Asociated table ####
+
+load("cache.rda")
+
+### plot level stocks and fluxes ####
+
+dtab <- subset(df_plot, method == "chave14_h+subs")
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, year ~ variable, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+write.csv(dtab, file = "stables/table-s1_plot.csv", row.names = FALSE)
+
+
+### habitats ####
+
+dtab <- df_crown_hab
+
+# change name of habitat to match publication: first letter in upper case and add spaces
+levels(dtab$habitat) <- paste0(toupper(substr(levels(dtab$habitat), 1, 1)), 
+                                      substr(levels(dtab$habitat), 2, nchar(levels(dtab$habitat))))
+levels(dtab$habitat) <- gsub("Hi_", "High ", levels(dtab$habitat))
+levels(dtab$habitat) <- gsub("_", " ", levels(dtab$habitat))
+levels(dtab$habitat) <- gsub("Young", "Young forest", levels(dtab$habitat))
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, habitat + year ~ variable, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+dtab <- dtab[, c("habitat", "year", "interval", "agb", "dagb", "awp", "awm")]
+
+colnames(dtab) <- c("Habitat", "Census year", "Census interval", "AGB", "deltaAGB", "AWP", "AWM")
+
+write.csv(dtab, file = "stables/table-s2_habitat.csv", row.names = FALSE)
+
+
+### size ####
+
+dtab <- df_size
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, size + year ~ variable, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+dtab <- dtab[, c("size", "year", "interval", "agb", "awp", "awm")]
+
+colnames(dtab) <- c("Size class (cm)", "Census year", "Census interval", "AGB", "AWP", "AWM")
+
+write.csv(dtab, file = "stables/table-s3_size.csv", row.names = FALSE)
+
+
+### PFT ####
+
+dtab <- df_pft
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, PFT + year ~ variable, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+dtab <- dtab[, c("PFT", "year", "interval", "agb", "awp", "awm")]
+
+colnames(dtab) <- c("PFT", "Census year", "Census interval", "AGB", "AWP", "AWM")
+
+write.csv(dtab, file = "stables/table-s4_pft.csv", row.names = FALSE)
+
+
+### FG ####
+
+dtab <- df_pft2
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, FG + year ~ variable, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+dtab <- dtab[, c("FG", "year", "interval", "agb", "awp", "awm")]
+
+colnames(dtab) <- c("FG", "Census year", "Census interval", "AGB", "AWP", "AWM")
+
+write.csv(dtab, file = "stables/table-s5_fg.csv", row.names = FALSE)
+
+
+### allometries ####
+
+dtab <- subset(df_plot, variable == "agb" & method %in% paste0("chave", rep(c("05", "14"), 2), rep(c("", "_h"), each = 2)) )
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, year ~ method, value.var = "value")
+
+write.csv(dtab, file = "stables/table-s6_allometries.csv", row.names = FALSE)
