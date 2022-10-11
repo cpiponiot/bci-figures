@@ -459,13 +459,29 @@ load("cache.rda")
 
 ### plot level stocks and fluxes ####
 
-dtab <- subset(df_plot, method == "chave14_h+subs")
+dtab <- df_plot
 
 dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
 
-dtab <- data.table::dcast(dtab, year ~ variable, value.var = "value")
+dtab <- data.table::dcast(dtab, year + method ~ variable, value.var = "value")
 
-dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+dtab$interval <- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+colnames(dtab) <- c("Census year", "method", "AGB", "AWM", "AWP", "deltaAGB", "Census interval") 
+
+dtab[, `Biomass allometry` := c("Chave et al., 2005", "Chave et al., 2014")[1+grepl("14", method)]]
+dtab[, `Local height allometry` := c("Yes", "No")[1+grepl("_h", method)]]
+dtab[, `Taper correction` := c("Yes", "No")[1+grepl("taper", method)]]
+dtab[, `Kohyama correction` := c("Yes", "No")[1+grepl("kohyama", method)]]
+dtab[, `Outlier substitution` := c("Yes", "No")[1+grepl("subs", method)]]
+
+dtab <- dtab[ , c("Biomass allometry", "Local height allometry", "Taper correction", 
+                  "Kohyama correction", "Outlier substitution", 
+                  "Census year", "Census interval", 
+                  "AGB", "deltaAGB", "AWP", "AWM")]
+
+setorder(dtab, `Biomass allometry`, `Local height allometry`, `Taper correction`, 
+         `Kohyama correction`, `Outlier substitution`, `Census year`, `Census interval`)
 
 write.csv(dtab, file = "stables/table-s1_plot.csv", row.names = FALSE)
 
@@ -544,13 +560,3 @@ colnames(dtab) <- c("FG", "Census year", "Census interval", "AGB", "AWP", "AWM")
 
 write.csv(dtab, file = "stables/table-s5_fg.csv", row.names = FALSE)
 
-
-### allometries ####
-
-dtab <- subset(df_plot, variable == "agb" & method %in% paste0("chave", rep(c("05", "14"), 2), rep(c("", "_h"), each = 2)) )
-
-dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
-
-dtab <- data.table::dcast(dtab, year ~ method, value.var = "value")
-
-write.csv(dtab, file = "stables/table-s6_allometries.csv", row.names = FALSE)
