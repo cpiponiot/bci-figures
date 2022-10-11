@@ -1,0 +1,506 @@
+---
+title: "Woody Biomass Stocks and Fluxes in the Barro Colorado Island 50 ha Plot"
+author: Camille Piponiot; Helene C. Muller-Landau
+
+institute:
+  - fs: Cirad, Université de Montpellier, UR Forests and Societies, 34980 Montferrier-sur-Lez, France
+  - stri: Forest Global Earth Observatory, Smithsonian Tropical Research Institute, Apartado Postal 0843-03092, Panamá, Republic of Panamá
+
+output: 
+  bookdown::word_document2:
+    reference_docx: common/word-styles-ref-01.docx
+  fig_caption: yes
+bibliography: references.bib
+csl: common/new-phytologist.csl
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, results = "hide")
+
+# load packages
+library(ggplot2)
+library(data.table)
+
+# load data
+load("cache.rda")
+# bci habitats from Harms et al 2001
+load("bci_habitat.rda")
+```
+
+**Corresponding author**: Camille Piponiot, camille.piponiot-laroche@cirad.fr  
+
+**Word count** (not including abstract, section titles and figure legends): about 3200
+
+4 figures, 0 tables 
+
+**Keywords** (up to 10): aboveground biomass; woody productivity; tropical forest; carbon; Barro Colorado Island; permanent forest plot; tree census
+
+**Abstract (max 150 words)**: Tropical forest biomass, and the carbon it contains, is of increasing interest to the international community, particularly for its role in climate change. The 50 ha forest plot on Barro Colorado Island provides an excellent resource for investigating changes in tropical forest biomass and hypothesized mechanisms due to its size, temporal extent (35 years of inventories), and sampling intensity (all trees larger than 1 cm diameter). These census data, together with tree biomass allometric equations, enable calculation of estimated aboveground woody biomass and woody productivity of trees. In this chapter, we first briefly describe the methods used to calculate aboveground biomass and woody productivity, including challenges associated with buttressed trees and differences in census methods over time. We then present and review findings on aboveground biomass and woody productivity, including their spatial variation with habitat, their temporal variation, and their distribution among trees of different size classes and functional groups.
+
+
+## Introduction (~500 words)
+
+### What is biomass and why is it important
+
+Tropical forests constitute a globally important carbon stock, and uncertainty about the future of this carbon is one of the largest sources of uncertainty in projecting the future global carbon cycle [@Cavaleri2015].
+Tree trunks and branches account for the large majority of forest biomass carbon stocks, as dry wood is approximately half carbon by weight [@Thomas2012]. 
+The trajectory of tropical forest biomass carbon stocks thus depends on whether the total mass of wood in tropical forests increases or decreases, which in turn depends on land use as well as on how tree growth and mortality respond to changing atmospheric composition and climate [@Mitchard2018].  
+It is well-understood that deforestation and forest degradation result in the release of carbon previously stored in biomass to the atmosphere as biomass burns and/or decomposes, whereas reforestation and forest regrowth result in carbon uptake.  
+What is less clear is how increasing atmospheric carbon dioxide and changing climate is affecting carbon stocks in intact and otherwise undisturbed forests.     
+
+### Hypothesized impacts of global change on tropical forest C stocks and fluxes
+
+Carbon stocks per area in intact forests depend on the balance of two carbon fluxes: carbon uptake associated with tree growth, and carbon loss associated with tree mortality and branchfall, and both these fluxes can be influenced by global change [@Muller-Landau2021].
+Increasing atmospheric carbon dioxide concentrations and increasing nitrogen deposition may increase photosynthetic rates, and thus potentially tree growth fluxes and forest carbon stocks [@Norby2005;@QuinnThomas2010].
+At the same time, changing climates are increasing the frequency and intensity of droughts and major storms, and these and other factors may be increasing tropical tree mortality rates, thereby decreasing forest carbon stocks [@Mcdowell2018].
+There is increasing evidence that carbon stocks and fluxes in intact tropical forests are on average changing directionally, with increasing carbon stocks, increasing woody productivity fluxes (due to increasing tree growth), and increasing tree mortality fluxes, with patterns varying among sites and over time [@Lewis2009;@Brienen2015;@Hubau2020]. 
+Tree functional composition is also shifting directionally in many sites, likely reflecting global change drivers, with implications for future responses of tropical forests to global change [@Esquivel-Muelbert2018;@Feeley2011].
+
+### Role of BCI 50 ha studies of biomass and this manuscript
+
+The BCI 50-ha was installed in 1980 to study forest dynamics, and complete inventories of all stems larger than 1 cm in diameter have been conducted every 5 years since then (REF - Hubbell et al. plot history chapter - link to Dryad repository?). 
+These data are complemented by large data sets on tree height and wood density collected in Central Panama. 
+Together, these data can be used to quantify the aboveground biomass of each tree measured.  
+The BCI 50-ha plot is therefore an exceptional resource for studying the spatial and temporal variation in carbon stocks and fluxes: the temporal coverage of forest inventories (40 years) provides insight into long-term changes in biomass dynamics; the plot’s particularly large size limits sampling errors that can occur with smaller plots; and measurements of all trees from a small diameter upwards provide crucial information on understory carbon dynamics. 
+This chapter discusses previous research on woody biomass on the BCI 50 ha plot: early methodological studies, and patterns of variation in woody biomass stocks and fluxes across space, time, tree size and functional group.
+
+## Background
+
+Aboveground biomass can be measured directly by harvesting, drying, and weighing the trees. 
+Such destructive methods are expensive, and have never been applied on BCI due to restrictions on destructive sampling. 
+Aboveground biomass is thus more commonly inferred by applying allometric equations based on a limited number of destructive harvests. 
+These allometric equations estimate the biomass of individual trees from their diameters, and sometimes their heights and species wood densities. 
+The estimated aboveground biomass is then summed across all trees to obtain the total aboveground biomass of the stand. 
+This is often further converted to carbon stocks by multiplying by a conversion factor (approximately 50%) representing the proportion of dry biomass that is carbon [@Thomas2012].
+
+In addition to biomass stocks, ecologists are also interested in biomass fluxes due to wood production, tree mortality, and their difference, which represents the net change in biomass over time. 
+Woody productivity can be simply calculated by summing the increase in biomass of living trees between two censuses, and the biomass of recruited trees (i.e., trees that were measured for the first time in the later census), and dividing by the total area and by the length of the time interval between the two censuses. 
+The mortality flux (mass per area per time) is most simply calculated by summing the biomass of all trees that died between two censuses, and again dividing by total area and time interval. 
+Wood residence time, the average lifetime of biomass in the plot, can be calculated as the ratio of total biomass stocks to wood productivity or mortality.
+
+## Uncertainty in and sensitivity of estimates of biomass stocks and fluxes 
+
+### Biomass allometries
+
+> possible new analysis – compare values using Duque et al. allometry from the Choco? (Duque et al. 2017 FEM) with local height allometry?  
+
+Estimating the biomass of an individual tree from allometric equations is not a trivial task, as it requires many choices and approximations. 
+Early allometric equations were calibrated with only on a few harvested trees, usually at few sites, and used only diameter as a predictor variable [e.g. in @Chave2003]. 
+Later equations include a larger number of sites spread across the tropics, incorporate tree height, or environmental factors that affect height, and species-level wood specific gravity [@Chave2005;@Chave2014]. 
+Tree height is more difficult to measure than diameter, especially in dense vegetation: for sites such as BCI where heights of all trees are not available, then a height-diameter allometry equation can be chosen [e.g., @MartinezCano2019 for BCI]. 
+Wood specific gravity is most often assigned by species from large taxonomic databases [e.g., @Zanne2009], and extensive wood specific gravity data collected in central Panama can be used in allometric equations at BCI [REF - SI of Rutishauser et al;. Condit et al. 2019 species list]. 
+Estimates of plot biomass stocks thus depend strongly on the allometric equations and wood densities that are chosen [@Chave2004; Figure S1a, Table S1]. 
+This variability in allometric models explains much of the variation among studies in their estimates of aboveground biomass for the 50 ha BCI plot: from 214 [@DeWalt2004] to 288 Mg/ha [@Piponiot2022]. 
+Overall, @Chave2004 estimated that the error associated with allometric models was the most important source of error when estimating aboveground biomass at BCI, around 13% of the mean AGB estimate. 
+
+At this time, we believe the best allometry to use for BCI is the @Chave2014 equation with a local height allometry [@MartinezCano2019], which produces an AGB estimate for 2015 of 236 Mg/ha (Figure \@ref(fig:temporal)a; Table S1). 
+This allometric equation is based on the largest existing dataset of harvested trees, and is widely used in the scientific literature (enabling comparison of biomass values between studies and sites). 
+The use of a local height allometry ensures that the allometry is adapted to local environmental conditions at BCI. 
+In comparison, the use of the @Chave2014 allometry without the local height allometry results in a 10% higher value, thus potentially overestimating the biomass at BCI. 
+All codes used to obtain woody biomass stocks and fluxes in this chapter are provided in the supplementary material. 
+
+[xx suggest some corrections: Kohyama, taper?]
+
+### Buttressed trees: Changing height of measurement, taper, taper corrections (Helene can do; start with text from last time)
+
+[From last time:] The standard height for measuring tree diameter is 1.3 m (referred to as diameter at breast height, or DBH), and the vast majority of biomass allometries are calibrated with diameter values at 1.3 m. However, tree diameter is sometimes measured at a different height, for example because of trunk irregularity at 1.3 m height in buttressed trees; due to tree taper, this can lead to underestimation of tree diameter and thus biomass. Change in height of measurement, among other factors such as errors in DBH measurement and reporting, irregular or thorny trunks, and the presence of lianas or strangling figs, can lead to erroneous outlier values for change in diameter [@Sheil1995]. Nonstandard measurement height can be handled by multiplying the measured diameter by a “taper correction” factor; such a model has been calibrated with BCI data (@Cushman2014; see "taper correction" in Figure S1). To deal with outlier variation in diameter, outlier values can be replaced with the average growth of stems with similar characteristics (e.g., similar diameter; see “outlier substitution” in Figure S1). Nonetheless, a key challenge in interpreting and comparing estimates of biomass stocks and fluxes among sites and studies is that values – especially for biomass net change – are often very sensitive to the choices made in such correction procedures (e.g., the threshold for defining an outlier), and there are multiple reasonable alternative procedures [@Muller-Landau2014].
+
+### Errors and QAQC
+
+> Sampling errors in AGB – Chave et al. 2004 (with plot size)
+> Chave et al. 2004, - propagated different types of errors
+> Muller-Landau et al. 2014;  
+> Stem-localized vs. Crown-distributed 
+
+### BCI-specific issues: small stems, HOM, multiple stem tagging
+
+## Variation in Biomass stocks and fluxes at BCI 
+
+### Spatial variation 
+
+Woody biomass stocks and fluxes exhibit high small-scale spatial variability [e.g., tens of meters; @Rejou-Mechain2014]. 
+This is especially true when all stocks and fluxes for a tree are assigned to the location of the trunk; the noisiness decreases when they are instead distributed across the estimated crown area [@Mascaro2011]. 
+Because forest inventories are expensive and therefore limited in area (typically 0.1-1 ha), this fine-scale variability can create sampling errors, the magnitude of which can be assessed at BCI by estimating the spatial variation in aboveground biomass stocks and fluxes within the 50-ha plot. 
+Estimating the total plot’s aboveground biomass with a 20% error would require 160 quadrats of 20x20 m, or nine 1-ha subplots [@Chave2003]. 
+A single 1-ha plot has a probability of 40% of being representative of the entire 50-ha plot’s AGB [@Hetzer2020]. 
+
+This small-scale spatial variability in biomass stocks and fluxes is in part due to canopy gaps created after the death of canopy trees. This variability can be further increased by the higher density of lianas in canopy gaps [@Schnitzer2021], which compete with trees and can reduce biomass stocks [@Schnitzer2014]. 
+Spatial differences in recovery stages can thus be a source of sampling error when estimating both aboveground biomass and its temporal changes. @Muller-Landau2014 estimated that the standard variation of aboveground biomass changes within the BCI 50-ha plot was 5 Mg/ha/yr among 0.1-ha subplots, and 1 Mg/ha/yr among 1-ha subplots.
+
+The observed spatial variability of aboveground biomass stocks and fluxes can also be explained by differences in local environmental conditions. 
+In particular, topographically-defined habitats differ systematically in biomass and productivity [@Chave2003].  
+Slopes have the highest woody biomass stocks (274 ± 15 Mg/ha) while swamps had the highest woody productivity (9.2 ± 2.4 Mg/ha/yr) across the plot. 
+Conversely, young forests have the lowest woody biomass stocks (193 ± 18 Mg/ha) and woody productivity (6.4 ± 1.0 Mg/ha) across the plot (Figure \@ref(fig:spatial); Table S2).
+
+### Among trees of different types 
+
+Biomass is not equally distributed among trees of different sizes and species. 
+These differences can in turn affect the plot’s biomass fluxes, as trees of different sizes and species have different growth and mortality rates, and respond differently to different environmental conditions. 
+Intermediate diameter classes contained the greatest proportion of AGB: over half of the total live AGB was in trees 10-60 cm in diameter [@Chave2003]. 
+AGB fluxes also peak at intermediate diameter classes in BCI, but their value is relatively higher in small stems compared to AGB: stems ≥ 50 cm accounted for on average 59% of AGB, but only 45% of woody productivity and 49% of woody mortality [@Meakem2018]. 
+The distribution of AGB stocks and fluxes among diameter classes is little changed between census years (Figure \@ref(fig:groups)a-c; Table S3). 
+In terms of species composition, long-lived pioneers [as defined by @Ruger2020] make up an average 43% of the AGB, and this proportion increases over time (Figure \@ref(fig:groups)c-e; Table S3). 
+In contrast, they account for only 32% of wood productivity, while fast and slow species both account for 27% of wood productivity. 
+
+> By functional groups (Rubio2020 - Fig 3 g-i)?  
+
+> by species?  suggested by Stuart…  make this a new table in SI?  
+
+
+### Temporal variation / trend
+
+> Calculate woody residence time from mean AGB and mean AWP, from mean AGB and mean AWM.  
+
+The direction and magnitude of future changes in biomass stocks and fluxes in tropical forests are still uncertain, and could have significant effects on future climate. 
+Because of its repeated censuses over a long period of time, the 50-ha plot at BCI offers a great opportunity to understand the underlying drivers of temporal variation in AGB stocks and fluxes. 
+According to @Chave2003, the plot's AGB varied between 261 and 269 Mg/ha, but did not show a significant trend; when considering only trees larger than 10 cm in diameter, the temporal variation in AGB was slightly negative. 
+Both woody productivity and woody mortality showed strong temporal variation at BCI [Figure \@ref(fig:temporal), Table S1; @Chave2003; @Chave2008; @Rutishauser2020].
+
+Temporal variation in wood productivity and mortality can be partially explained by the effect of climate on tree growth and mortality. 
+Tree growth rates at BCI were negatively correlated with annual mean daily minimum temperatures and positively correlated with annual precipitation and the number of days without rain [@Feeley2007].
+Both woody productivity and mortality were significantly higher during drought years associated with el Niño events, especially in larger trees [@Meakem2018].
+However, no directional trends in woody productivity and mortality were detected in the 50 ha plot, even when controlling for local gap dynamics [@Rutishauser2020]. 
+By contrast, an increase in the biomass of lianas was detected on the plot, but this biomass corresponds to only 3.3% of the aboveground biomass of the trees [@Schnitzer2021; Schnitzer et al., this volume]. 
+
+> In related variables: tree size distribution – Muller-Landau et al. 2006b
+
+## BCI in relation to other tropical forest sites (~600 words?)
+
+### Magnitude of stocks and fluxes compared with other sites in the region and globally
+
+The 50 ha plot is not representative of the island of Barro Colorado, let alone the entire Barro Colorado National Monument: it is located in a particularly flat part of the island, with a relatively homogeneous geological substrate and fairly old forest compared to the rest of the island [@Baillie2006;@Mascaro2011a]. Results from other plots distributed throughout Barro Colorado National Monument and remote sensing show that the 50 ha plot has a higher average biomass than the rest of Barro Colorado National Monument [@Mascaro2011a; Cushman et al., this volume; Meakem et al., this volume].
+
+Central Panama, where Barro Colorado Island is located, has a strong climatic gradient from the drier Pacific coast to the wetter Caribbean coast. 
+An extensive network of forest plots has been installed in the Panama Canal watershed over the past three decades to study how forest dynamics vary along this climatic gradient. 
+Studies comparing BCI to other plots in Central Panama showed that the 50-ha plot is fairly representative of the region, with intermediate values of AGB, wood productivity, and wood mortality compared to other plots in Central Panama [@Chave2004; Muller-Landau et al., this volume]. 
+
+Compared to globally distributed old-growth tropical forests, BCI’s AGB stocks are consistent with other South American forests [Figure \@ref(fig:global)a; @Sullivan2020].
+However, most tropical forests have increasing AGB, while the biomass of BCI is constant or even slightly decreasing (Figure \@ref(fig:global)b). 
+BCI is also unusual in its biomass fluxes, which are particularly high compared to other South American forests (Figure \@ref(fig:global)c-d). 
+
+### Why are temporal trends different?  (Helene)
+
+- Larger plot – lower sampling error, less potential for selective remeasurement or not
+
+- Longer record – longer perspective on increases/decreases?  no mistaking short-term swing for long-term trend… 
+
+- Data openly available – others can evaluate sensitivity to choices that determine AWP trends…  
+
+### How does BCI differ in drivers? (Helene?)
+
+- Methodological shifts – height of measurement on buttressed trees; tagged stems, early year imprecision small stems – none can explain 
+
+- Regional climate drivers – ENSO, AMO
+
+- BCI history – formation of Gatun lake and island – impact on local climate: 
+
+- windspeed
+
+- cloudiness, storms
+
+- lightning
+ 
+- Regional climate change – increasing minimum temperatures…  
+
+- Shipping lane nearby – air pollution including N deposition, lightning 
+
+-  Human history
+
+- Liana increase 
+
+- Functional shift?  
+
+## Conclusions and future directions (< 500 words)
+
+The 50 ha plot tree censuses have greatly improved our knowledge of tropical forest biomass stocks and dynamics, as well as the underlying processes. They have led to a better understanding of the multiple sources of uncertainty in estimating woody biomass stocks and fluxes. Although woody biomass fluxes were affected by climate change, and in particular by droughts caused by El Niño events that increase both woody productivity and mortality, no directional changes in woody biomass stocks were detected in the 50 ha BCI plot.
+
+However, there are still critical gaps in this knowledge, particularly with respect to patterns and drivers of variation across the larger landscape. Comparisons with biomass stocks and fluxes in other tree census plots in Panama are discussed in Meakem et al. and Muller-Landau et al., and the effects of large-scale experimental manipulations are addressed in the relevant chapters (REFS). 
+
+Rapidly developing remote sensing technologies such as drones, airborne LiDAR, and satellites allow for large-scale, low-cost measurements of some aspects of aboveground biomass. All these tools require detailed field knowledge and extensive calibration data, which we have access to through long-term forest plots such as the 50 ha plot on Barro Colorado Island. Studies of remote sensing of forest biomass stocks and fluxes, including the use of the BCI 50 ha plot data to calibrate and/or evaluate remote sensing, are addressed in Cushman, this volume.
+
+The aboveground woody biomass estimates provided in this chapter omit some forest biomass stocks and fluxes, which may vary in importance but are all relatively difficult to estimate accurately. Other chapters address soil carbon stocks and fluxes (Cusack, this volume), and woody debris carbon stocks and fluxes (Gora, this volume).
+
+
+### Future directions
+
+Improving the accuracy of allometric estimates of biomass and woody productivity is still a major challenge. The large dataset of tree height measured at BCI could also be used to calibrate more accurate species-specific height allometries.  Terrestrial laser scanning can provide nondestructive measurements of stem volume, which greatly increases the precision of forest biomass estimates, and capture local variation in biomass allometries [@Disney2019].  
+
+Complete tree censuses on the 50 ha BCI plot are conducted every 5 years, which misses most of the inter- and intra-annual variation in woody productivity and mortality. Dendrometer bands installed on xxx large trees at BCI provide data on changes in tree diameter at fine temporal resolutions (xx days): these could be used to better understand the effect of climatic factors on tree growth.
+
+Branchfalls, which are an important part of aboveground biomass turnover in tropical forests and account for about a fourth of the area of canopy gaps in BCI [@Araujo2021], are generally omitted from biomass fluxes. These could be better estimated using repeat measurements of canopy tree crowns such as damage surveys, drone photogrammetry, and terrestrial or airborne LiDAR.
+
+## Figures
+
+```{r temporal, fig.height=6, fig.width=6, fig.cap = "Aboveground biomass stocks and fluxes in the 50-ha BCI plot. (a) Aboveground biomass (AGB, Mg/ha) by census; (b) changes in aboveground biomass stocks ($\\Delta$AGB, Mg/ha/yr), by census interval; (c) aboveground biomass fluxes (Mg/ha/yr), by census interval: aboveground woody productivity (AWP) in blue and aboveground woody mortality (AWM) in red. Points represent the total plot value, and segments represent the 95% confidence interval obtained by bootstrapping over 20x20m quadrats. Individual stem AGB values were obtained using the equation from Chave et al., 2014, using local tree allometry from Martínez Cano et al., 2019; no corrections were applied. Exact values are also found in Table S1."}
+# prepare data for the figure
+dfig <- subset(df_plot, method == "chave14_h")
+# intermediate census years for agb fluxes
+dfig[variable != "agb", year := year + 2.5]
+dfig[variable == "awp", year := year - 0.05]
+dfig[variable == "awm", year := year + 0.05]
+
+dfig$var_group <- as.character(dfig$variable)
+dfig$var_group[dfig$variable %in% c("awp", "awm")] <- "flux"
+
+dfig$variable <- factor(dfig$variable, levels = c("agb", "dagb", "awp", "awm"))
+levels(dfig$variable) <- toupper(levels(dfig$variable))
+
+dfig$var_group <- factor(dfig$var_group)
+levels(dfig$var_group) <- c("'AGB (Mg/ha)'", "Delta*'AGB (Mg/ha/yr)'", "'AWP or AWM (Mg/ha/yr)'")
+
+## panel labels
+ann_panels <- data.frame(text = letters[1:3], var_group = factor(levels(dfig$var_group), levels = levels(dfig$var_group)))
+
+## horizontal line
+ann_line <- data.frame(line = 0, var_group = factor(levels(dfig$var_group)[2], levels = levels(dfig$var_group)))
+
+ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) +
+  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = variable)) +
+  ggplot2::labs(x = "", y = "", color = "") +
+  ggplot2::geom_text(data = ann_panels, aes(label = text), x = -Inf, y = Inf, hjust = 5, vjust = 0.5, size = 5) +
+  ggplot2::geom_hline(data = ann_line, aes(yintercept = line), lty = 2) + ## add horizontal line to delta AGB
+  ggplot2::theme_classic() +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  ggplot2::scale_color_discrete(breaks = c("AWP", "AWM"), type = c("black", "black", "cyan4", "coral2")) +
+  ggplot2::theme(strip.placement = "outside",
+                 strip.background = element_blank(),
+                 legend.position = c(0.9, 0.3),
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~var_group, scales = "free_y", strip.position = "left", ncol=1, labeller = label_parsed)
+```
+
+
+```{r spatial, fig.height=7, fig.width=6, fig.cap = "Spatial variation in (a) aboveground biomass (AGB, Mg/ha) and (b) aboveground woody productivity (AWP, Mg/ha) among habitats, as defined by Harms et al., 2001; panel (c) shows the location of habitats in the 50-ha plot. Points represent the total plot value, averaged over censuses and census intervals, and segments represent the 95% confidence interval obtained by bootstrapping over 20x20m quadrats.  AGB and AWP values for habitats, as well as aboveground woody mortality (AWM) and changes in AGB between censuses, are provided in Table S2."}
+
+# change habitat names to match Harms et al 2001
+levels(bci_habitat$habitat) <- paste0(toupper(substr(levels(bci_habitat$habitat), 1, 1)), 
+                               substr(levels(bci_habitat$habitat), 2, nchar(levels(bci_habitat$habitat))))
+levels(bci_habitat$habitat) <- gsub("Hi_", "High ", levels(bci_habitat$habitat))
+levels(bci_habitat$habitat) <- gsub("_", " ", levels(bci_habitat$habitat))
+levels(bci_habitat$habitat) <- gsub("Young", "Young forest", levels(bci_habitat$habitat))
+
+# ## Convert bci_habitat to a raster 
+bci_habitat[, `:=`(xr = x + 10, yr = y + 10)]
+ghabitat <- ggplot(bci_habitat) +
+  geom_raster(aes(x = xr, y = yr, fill = habitat)) + 
+  labs(x = "", y = "", fill = "") +
+  expand_limits(x = c(0, 1000), y = c(0, 500)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_manual(values = RColorBrewer::brewer.pal(7, "Dark2")[c(1, 5, 3, 6, 4, 2, 7)]) +
+  coord_equal() +
+  theme_bw()
+
+# prepare data for the figure
+dfig <- df_crown_hab[variable %in% c("agb", "awp")]
+# intermediate census years for agb fluxes
+dfig[variable != "agb", year := year + 2.5]
+# dfig[variable == "awp", year := year - 0.05]
+# dfig[variable == "awm", year := year + 0.05]
+
+dfig$variable <- factor(dfig$variable, levels = c("agb", "awp"))
+levels(dfig$variable) <- c("'AGB (Mg/ha)'", 
+                           "'AWP (Mg/ha/yr)'")
+
+# change habitat names to match Harms et al 2001
+levels(dfig$habitat) <- paste0(toupper(substr(levels(dfig$habitat), 1, 1)), 
+                               substr(levels(dfig$habitat), 2, nchar(levels(dfig$habitat))))
+levels(dfig$habitat) <- gsub("Hi_", "High ", levels(dfig$habitat))
+levels(dfig$habitat) <- gsub("_", " ", levels(dfig$habitat))
+levels(dfig$habitat) <- gsub("Young", "Young forest", levels(dfig$habitat))
+
+
+## average over census years
+dfig <- dfig[, .(tot = mean(tot), lwr = mean(lwr),  upr = mean(upr)), .(habitat, variable)]
+
+## panel labels
+ann_panels <- data.frame(text = letters[1:2], variable = factor(levels(dfig$variable), levels = levels(dfig$variable)))
+
+g1 <- ggplot2::ggplot(dfig, ggplot2::aes(x = habitat, y = tot)) +
+  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = habitat)) +
+  ggplot2::labs(x = "", y = "", color = "") +
+  ggplot2::geom_text(data = ann_panels, aes(label = text), x = -Inf, y = Inf, hjust = 5, vjust = 0.5, size = 5) +
+  ggplot2::theme_classic() +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  ggplot2::theme(strip.placement = "outside",
+                 strip.background = element_blank(),
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15),
+                 axis.text.x = element_text(angle = 45, vjust = 1, hjust=1), 
+                 legend.position = "none") +
+  scale_color_manual(values = RColorBrewer::brewer.pal(7, "Dark2")[c(1, 5, 3, 6, 4, 2, 7)]) +
+  ggplot2::facet_wrap(~variable, scales = "free_y", strip.position = "left", ncol=1, labeller = label_parsed)
+
+ggpubr::ggarrange(g1, ghabitat, ncol=1, labels = c("", "c"), heights = c(2,1))
+```
+
+```{r groups, fig.height=8, fig.width=10, fig.cap = "Contribution by diameter class (a-c) and functional group (d-i) to aboveground biomass (AGB, Mg/ha), aboveground woody productivity (AWP, Mg/ha/yr)  and aboveground woody mortality (AWM, Mg/ha/yr).  AGB, AWP, AWM values and inter-census changes in AGB by size class and functional group are provided in Table S3."}
+# change flux year to match middle of census interval
+df_size[variable != "agb", year := year + 2.5]
+
+# change variable labels (AGB, AWP) to upper case
+levels(df_size$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
+
+# revert order of size classes to have bigger trees above
+df_size$size <- factor(df_size$size, levels = rev(levels(df_size$size)))
+
+## panel labels
+ann_panels <- data.frame(text = letters[1:3], 
+                         h = c(4, 3, 4), v = 0.5,
+                         variable = factor(levels(df_size$variable), 
+                                           levels = levels(df_size$variable)))
+
+fig3a_bis_groups_size <- ggplot(df_size) + 
+  geom_col(aes(x = year, y = tot, fill = size)) + 
+  ggplot2::geom_text(data = ann_panels, aes(label = text, hjust = h, vjust = v), x = -Inf, y = Inf, size = 5) +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  labs(x = "", y = "", fill = "Diameter\nclass (cm)") +
+  scale_y_continuous(expand = c(0, 0)) +  
+  scale_fill_brewer(palette = "RdYlBu") +
+  ggplot2::theme_classic() +
+  ggplot2::theme(strip.placement = "outside", 
+                 strip.background = element_blank(), 
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~variable, scales = "free", strip.position = "left")
+
+# b - PFT according to Ruger et al 2020
+
+# change flux year to match middle of census interval
+df_pft[variable != "agb", year := year + 2.5]
+
+levels(df_pft$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
+
+## panel labels
+ann_panels <- data.frame(text = letters[4:6], 
+                         h = c(4, 3, 5), v = 0.5,
+                         variable = factor(levels(df_pft$variable), 
+                                           levels = levels(df_pft$variable)))
+
+# order and rename PFT 
+df_pft$PFT[is.na(df_pft$PFT)] <- "NA"
+df_pft$PFT <- factor(df_pft$PFT, levels = c("slow", "fast", "LLP", "SLB", "intermediate", "NA"))
+levels(df_pft$PFT) <- list("Slow" = "slow", "Fast" = "fast", 
+                           "Long-lived pioneers" = "LLP", 
+                           "Short-lived breeders" = "SLB", 
+                           "Intermediate" = "intermediate", 
+                           "No value" = "NA")
+
+fig3b_bis_groups_pft <- ggplot(df_pft) + 
+  geom_col(aes(x = year, y = tot, fill = PFT)) + 
+  ggplot2::geom_text(data = ann_panels, aes(label = text, hjust = h, vjust = v), x = -Inf, y = Inf, size = 5) +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  labs(x = "", y = "", fill = "PFT \n(Ruger et al., 2020)") +
+  scale_y_continuous(expand = c(0, 0)) +  
+  scale_fill_manual(values = c("orchid", "gold", "seagreen", "royalblue", "darkorange", "grey")) +
+  theme_classic() +
+  ggplot2::theme(strip.placement = "outside", 
+                 strip.background = element_blank(), 
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~variable, scales = "free", strip.position = "left")
+
+# c - PFT according to Rubio et al 2022
+
+# change flux year to match middle of census interval
+df_pft2[variable != "agb", year := year + 2.5]
+
+# change variable labels (AGB, AWP) to upper case
+levels(df_pft2$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
+
+# order and rename PFT 
+df_pft2$FG[is.na(df_pft2$FG)] <- "NA"
+df_pft2$FG <- factor(df_pft2$FG, levels = c("1", "2", "3", "NA"))
+levels(df_pft2$FG) <- list("Short shade-tolerants" = "1", 
+                           "Tall shade-tolerants" = "2", 
+                           "Tall pioneers" = "3",
+                           "No value" = "NA")
+## panel labels
+ann_panels <- data.frame(text = letters[7:9], 
+                         h = c(4, 3, 7), v = 0.5,
+                         variable = factor(levels(df_pft2$variable), 
+                                           levels = levels(df_pft2$variable)))
+
+fig3c_bis_groups_pft2 <- ggplot(df_pft2) + 
+  geom_col(aes(x = year, y = tot, fill = FG)) + 
+  ggplot2::geom_text(data = ann_panels, aes(label = text, hjust = h, vjust = v), x = -Inf, y = Inf, size = 5) +
+  ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  labs(x = "", y = "", fill = "FG \n(Rubio & Swenson, 2022)") +
+  scale_y_continuous(expand = c(0, 0)) +  
+  scale_fill_manual(values = c("#E41A1C", "#377EB8", "#4DAF4A", "grey")) +
+  theme_classic() +
+  ggplot2::theme(strip.placement = "outside", 
+                 strip.background = element_blank(), 
+                 plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
+  ggplot2::facet_wrap(~variable, scales = "free", strip.position = "left")
+
+fig3a_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig3a_bis_groups_size))
+fig3b_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig3b_bis_groups_pft))
+fig3c_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig3c_bis_groups_pft2))
+
+ggpubr::ggarrange(fig3a_bis_groups_size + theme(legend.position = "none"), fig3a_leg,
+                  fig3b_bis_groups_pft + theme(legend.position = "none"), fig3b_leg,
+                  fig3c_bis_groups_pft2 + theme(legend.position = "none"), fig3c_leg,
+                  ncol = 2, nrow = 3, widths = c(4,1))
+```
+
+```{r global, fig.height=6, fig.width=8, fig.cap = "Density plots of distributions of aboveground biomass (AGB, Mg/ha), changes in AGB ($\\Delta$AGB, Mg/ha/yr), aboveground woody productivity (AWP, Mg/ha/yr), and aboveground woody mortality (AWM, Mg/ha/yr) in mature tropical forests on four continents: Africa (AF), Asia (AS), Australia (AU), and South America (SA); data are from Sullivan et al. , 2020. Mean values for BCI are indicated by red vertical lines."}
+
+if (!dir.exists("MSullivan2020")) {
+  # download data from Sullivan et al 2020
+  sullivan_url <- "https://forestplots.net/upload/data-packages/sullivan-et-al-2020/MSullivan2020.zip"
+  download.file(sullivan_url, destfile = "MSullivan2020.zip", mode = "wb")
+  
+  # unzip
+  utils::unzip("MSullivan2020.zip", exdir = "MSullivan2020")
+}
+
+sullivan_mul <- read.csv("MSullivan2020/Data package/MultiCensusPlots.csv")
+sullivan_all <- read.csv("MSullivan2020/Data package/AllPlots.csv")
+
+df_mean <- df_plot[method=="chave14_h+subs", .(value = mean(tot)), .(variable)]
+df_mean <- data.table::dcast(df_mean, .~variable)
+
+sagb <- ggplot(sullivan_all, aes(x = AGB)) + 
+  geom_density(alpha = 0.5, aes(fill = Continent)) +
+  geom_vline(col=2, xintercept = df_mean$agb) +
+  annotate(geom = "text", col = 2, label = "BCI", x = df_mean$agb*1.25, y = 0, vjust = -1) +
+  labs(x = "AGB (Mg/ha)", y = "") +
+  expand_limits(x = 0) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(legend.position = c(0.85, 0.75))
+
+sawp <- ggplot(sullivan_mul, aes(x = AGWP)) + 
+  geom_density(alpha = 0.5, aes(fill = Continent)) +
+  geom_vline(col=2, xintercept = df_mean$awp) +
+  annotate(geom = "text", col = 2, label = "BCI", x = df_mean$awp*0.9, y = 0, vjust = -1) +
+  labs(x = "AWP (Mg/ha/yr)", y = "") +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+sawm <- ggplot(subset(sullivan_mul, Mort < 22), aes(x = Mort)) + 
+  geom_density(alpha = 0.5, aes(fill = Continent)) +
+  geom_vline(col=2, xintercept = df_mean$awm) +
+  annotate(geom = "text", col = 2, label = "BCI", x = df_mean$awm*0.8, y = 0, vjust = -1) +
+  labs(x = "AWM (Mg/ha/yr)", y = "") +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+sdagb <- ggplot(subset(sullivan_mul, Mort < 20), aes(x = AGWP-Mort)) + 
+  geom_density(alpha = 0.5, aes(fill = Continent)) +
+  geom_vline(col=2, xintercept = df_mean$dagb) +
+  annotate(geom = "text", col = 2, label = "BCI", x = (df_mean$dagb)+2, y = 0, vjust = -1) +
+  labs(x = bquote(Delta*'AGB (Mg/ha/yr)'), y = "") +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+ggpubr::ggarrange(sagb, sdagb, sawp,sawm, ncol=2, nrow = 2, labels = "auto")
+```
+
+
+## References
