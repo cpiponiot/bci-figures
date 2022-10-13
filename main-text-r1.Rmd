@@ -199,7 +199,7 @@ BCI is also unusual in its biomass fluxes, which are particularly high compared 
 - cloudiness, storms
 
 - lightning
- 
+
 - Regional climate change – increasing minimum temperatures…  
 
 - Shipping lane nearby – air pollution including N deposition, lightning 
@@ -233,19 +233,28 @@ Branchfalls, which are an important part of aboveground biomass turnover in trop
 
 ```{r temporal, fig.height=6, fig.width=6, fig.cap = "Aboveground biomass stocks and fluxes in the 50-ha BCI plot. (a) Aboveground biomass (AGB, Mg/ha) by census; (b) changes in aboveground biomass stocks ($\\Delta$AGB, Mg/ha/yr), by census interval; (c) aboveground biomass fluxes (Mg/ha/yr), by census interval: aboveground woody productivity (AWP) in blue and aboveground woody mortality (AWM) in red. Points represent the total plot value, and segments represent the 95% confidence interval obtained by bootstrapping over 20x20m quadrats. Individual stem AGB values were obtained using the equation from Chave et al., 2014, using local tree allometry from Martínez Cano et al., 2019; no corrections were applied. Exact values are also found in Table S1."}
 # prepare data for the figure
-dfig <- subset(df_plot, method == "chave14_h")
+dfig <- subset(df_plot, (variable =="gain" & method == "chave14_h+subs+kohyama") |
+                 (variable =="loss" & method == "chave14_h+kohyama") |
+                 (variable %in% c("stock", "delta") & method == "chave14_h")|
+                 (variable == "delta" & method == "chave14_h+taper"))
+
+dfig[, taper := grepl("taper", method)]
+
 # intermediate census years for agb fluxes
-dfig[variable != "agb", year := year + 2.5]
-dfig[variable == "awp", year := year - 0.05]
-dfig[variable == "awm", year := year + 0.05]
+dfig[variable != "stock", year := year + 2.5]
+dfig[variable == "gain", year := year - 0.05]
+dfig[variable == "loss", year := year + 0.05]
+dfig[variable == "dagb" & !taper, year := year - 0.05]
+dfig[variable == "dagb" & taper, year := year + 0.05]
 
 dfig$var_group <- as.character(dfig$variable)
-dfig$var_group[dfig$variable %in% c("awp", "awm")] <- "flux"
+dfig$var_group[dfig$variable %in% c("gain", "loss")] <- "flux"
 
-dfig$variable <- factor(dfig$variable, levels = c("agb", "dagb", "awp", "awm"))
-levels(dfig$variable) <- toupper(levels(dfig$variable))
+dfig$variable <- factor(dfig$variable, levels = c("stock", "delta", "gain", "loss"))
+levels(dfig$variable) <- c("AGB","DAGB","AWP","AWM")
+# levels(dfig$variable)[grep("DAGB", levels(dfig$variable))] <- c("No taper correction", "Taper correction")
 
-dfig$var_group <- factor(dfig$var_group)
+dfig$var_group <- factor(dfig$var_group, levels = c("stock", "delta", "flux"))
 levels(dfig$var_group) <- c("'AGB (Mg/ha)'", "Delta*'AGB (Mg/ha/yr)'", "'AWP or AWM (Mg/ha/yr)'")
 
 ## panel labels
@@ -255,18 +264,23 @@ ann_panels <- data.frame(text = letters[1:3], var_group = factor(levels(dfig$var
 ann_line <- data.frame(line = 0, var_group = factor(levels(dfig$var_group)[2], levels = levels(dfig$var_group)))
 
 ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) +
-  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = variable)) +
-  ggplot2::labs(x = "", y = "", color = "") +
+  ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = variable, alpha = taper)) +
+  ggplot2::labs(x = "", y = "", color = " \n \n \n \n \n", alpha = "Taper corrected") +
   ggplot2::geom_text(data = ann_panels, aes(label = text), x = -Inf, y = Inf, hjust = 5, vjust = 0.5, size = 5) +
   ggplot2::geom_hline(data = ann_line, aes(yintercept = line), lty = 2) + ## add horizontal line to delta AGB
   ggplot2::theme_classic() +
   ggplot2::coord_cartesian(clip = "off") +  # allow text to be written outside the plot (panel labels)
+  ggplot2::scale_alpha_manual(values = c(1, 0.3), labels = c("No", "Yes")) + 
   ggplot2::scale_color_discrete(breaks = c("AWP", "AWM"), type = c("black", "black", "cyan4", "coral2")) +
   ggplot2::theme(strip.placement = "outside",
                  strip.background = element_blank(),
-                 legend.position = c(0.9, 0.3),
+                 legend.background = element_rect(fill='transparent'),
+                 legend.position = c(0.9, 0.45),
+                 legend.title = element_text(size=8), #change legend title font size
+                 legend.text = element_text(size=8),
                  plot.title = ggplot2::element_text(hjust = 0.5, vjust = 2, size = 15)) +
-  ggplot2::facet_wrap(~var_group, scales = "free_y", strip.position = "left", ncol=1, labeller = label_parsed)
+  ggplot2::facet_wrap(~var_group, scales = "free_y", strip.position = "left", ncol=1, labeller = label_parsed)+
+  ggplot2::guides(color = guide_legend(order=2), alpha = guide_legend(order = 1))
 ```
 
 
@@ -274,7 +288,7 @@ ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) +
 
 # change habitat names to match Harms et al 2001
 levels(bci_habitat$habitat) <- paste0(toupper(substr(levels(bci_habitat$habitat), 1, 1)), 
-                               substr(levels(bci_habitat$habitat), 2, nchar(levels(bci_habitat$habitat))))
+                                      substr(levels(bci_habitat$habitat), 2, nchar(levels(bci_habitat$habitat))))
 levels(bci_habitat$habitat) <- gsub("Hi_", "High ", levels(bci_habitat$habitat))
 levels(bci_habitat$habitat) <- gsub("_", " ", levels(bci_habitat$habitat))
 levels(bci_habitat$habitat) <- gsub("Young", "Young forest", levels(bci_habitat$habitat))
@@ -333,11 +347,12 @@ g1 <- ggplot2::ggplot(dfig, ggplot2::aes(x = habitat, y = tot)) +
 ggpubr::ggarrange(g1, ghabitat, ncol=1, labels = c("", "c"), heights = c(2,1))
 ```
 
-```{r groups, fig.height=8, fig.width=10, fig.cap = "Contribution by diameter class (a-c) and functional group (d-i) to aboveground biomass (AGB, Mg/ha), aboveground woody productivity (AWP, Mg/ha/yr)  and aboveground woody mortality (AWM, Mg/ha/yr).  AGB, AWP, AWM values and inter-census changes in AGB by size class and functional group are provided in Table S3."}
+```{r groups, fig.height=6, fig.width=10, fig.cap = "Contribution by diameter class (a-c) and functional group (d-f) to aboveground biomass (AGB, Mg/ha), aboveground woody productivity (AWP, Mg/ha/yr)  and aboveground woody mortality (AWM, Mg/ha/yr).  AGB, AWP, AWM values and inter-census changes in AGB by size class and functional group are provided in Table S3."}
 # change flux year to match middle of census interval
 df_size[variable != "agb", year := year + 2.5]
 
 # change variable labels (AGB, AWP) to upper case
+df_size$variable <- factor(df_size$variable, levels = c("stock", "gain", "loss"))
 levels(df_size$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
 
 # revert order of size classes to have bigger trees above
@@ -367,6 +382,7 @@ fig3a_bis_groups_size <- ggplot(df_size) +
 # change flux year to match middle of census interval
 df_pft[variable != "agb", year := year + 2.5]
 
+df_pft$variable <- factor(df_pft$variable, levels = c("stock", "gain", "loss"))
 levels(df_pft$variable) <- c("AGB (Mg/ha)", "AWP (Mg/ha/yr)", "AWM (Mg/ha/yr)")
 
 ## panel labels
@@ -437,8 +453,8 @@ fig3c_leg <- ggpubr::as_ggplot(ggpubr::get_legend(fig3c_bis_groups_pft2))
 
 ggpubr::ggarrange(fig3a_bis_groups_size + theme(legend.position = "none"), fig3a_leg,
                   fig3b_bis_groups_pft + theme(legend.position = "none"), fig3b_leg,
-                  fig3c_bis_groups_pft2 + theme(legend.position = "none"), fig3c_leg,
-                  ncol = 2, nrow = 3, widths = c(4,1))
+                  # fig3c_bis_groups_pft2 + theme(legend.position = "none"), fig3c_leg,
+                  ncol = 2, nrow = 2, widths = c(4,1))
 ```
 
 ```{r global, fig.height=6, fig.width=8, fig.cap = "Density plots of distributions of aboveground biomass (AGB, Mg/ha), changes in AGB ($\\Delta$AGB, Mg/ha/yr), aboveground woody productivity (AWP, Mg/ha/yr), and aboveground woody mortality (AWM, Mg/ha/yr) in mature tropical forests on four continents: Africa (AF), Asia (AS), Australia (AU), and South America (SA); data are from Sullivan et al. , 2020. Mean values for BCI are indicated by red vertical lines."}
@@ -455,12 +471,13 @@ if (!dir.exists("MSullivan2020")) {
 sullivan_mul <- read.csv("MSullivan2020/Data package/MultiCensusPlots.csv")
 sullivan_all <- read.csv("MSullivan2020/Data package/AllPlots.csv")
 
-df_mean <- df_plot[method=="chave14_h+subs", .(value = mean(tot)), .(variable)]
+df_mean <- df_plot[year > 1990 & method=="chave14_h_dbh10+kohyama", 
+                   .(value = mean(tot)), .(variable)]
 df_mean <- data.table::dcast(df_mean, .~variable)
 
 sagb <- ggplot(sullivan_all, aes(x = AGB)) + 
   geom_density(alpha = 0.5, aes(fill = Continent)) +
-  geom_vline(col=2, xintercept = df_mean$agb) +
+  geom_vline(col=2, xintercept = df_mean$stock) +
   annotate(geom = "text", col = 2, label = "BCI", x = df_mean$agb*1.25, y = 0, vjust = -1) +
   labs(x = "AGB (Mg/ha)", y = "") +
   expand_limits(x = 0) +
@@ -471,7 +488,7 @@ sagb <- ggplot(sullivan_all, aes(x = AGB)) +
 
 sawp <- ggplot(sullivan_mul, aes(x = AGWP)) + 
   geom_density(alpha = 0.5, aes(fill = Continent)) +
-  geom_vline(col=2, xintercept = df_mean$awp) +
+  geom_vline(col=2, xintercept = df_mean$gain) +
   annotate(geom = "text", col = 2, label = "BCI", x = df_mean$awp*0.9, y = 0, vjust = -1) +
   labs(x = "AWP (Mg/ha/yr)", y = "") +
   scale_x_continuous(expand = c(0, 0)) +
@@ -481,7 +498,7 @@ sawp <- ggplot(sullivan_mul, aes(x = AGWP)) +
 
 sawm <- ggplot(subset(sullivan_mul, Mort < 22), aes(x = Mort)) + 
   geom_density(alpha = 0.5, aes(fill = Continent)) +
-  geom_vline(col=2, xintercept = df_mean$awm) +
+  geom_vline(col=2, xintercept = df_mean$loss) +
   annotate(geom = "text", col = 2, label = "BCI", x = df_mean$awm*0.8, y = 0, vjust = -1) +
   labs(x = "AWM (Mg/ha/yr)", y = "") +
   scale_x_continuous(expand = c(0, 0)) +
@@ -491,7 +508,7 @@ sawm <- ggplot(subset(sullivan_mul, Mort < 22), aes(x = Mort)) +
 
 sdagb <- ggplot(subset(sullivan_mul, Mort < 20), aes(x = AGWP-Mort)) + 
   geom_density(alpha = 0.5, aes(fill = Continent)) +
-  geom_vline(col=2, xintercept = df_mean$dagb) +
+  geom_vline(col=2, xintercept = df_mean$delta) +
   annotate(geom = "text", col = 2, label = "BCI", x = (df_mean$dagb)+2, y = 0, vjust = -1) +
   labs(x = bquote(Delta*'AGB (Mg/ha/yr)'), y = "") +
   scale_x_continuous(expand = c(0, 0)) +

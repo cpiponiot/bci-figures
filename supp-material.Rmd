@@ -23,6 +23,20 @@ csl: common/new-phytologist.csl
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, results = "hide")
+
+## QAQC parameters
+remove_strangler_figs <- TRUE
+use_median_palm_dbh <- TRUE
+
+biomass_allometry <- "chave14"
+
+use_local_height_allometry <- TRUE
+
+use_kohyama19_correction <- TRUE
+
+lower_ddbh_threshold <- -2.5
+upper_ddbh_threshold <- 7.5
+hom_change_threshold <- 1.0
 ```
 
 # Detailed methods and codes
@@ -105,7 +119,9 @@ large_strangler_figs <- subset(df_stem, (
     Species %in% c("costaricana", "obtusifolia", "popenoei", "trigonata")
 ))
 
-df_stem <- subset(df_stem, ! stemID %in% large_strangler_figs$stemID)
+if (remove_strangler_figs) {
+  df_stem <- subset(df_stem, ! stemID %in% large_strangler_figs$stemID)
+}
 ```
 
 
@@ -120,7 +136,9 @@ df_stem[, dbh := dbh/10]
 No palm species, except *Socratea exorrhiza*, grows in diameter. Therefore, all changes in DBH of palms can be considered measurement errors. We replaced the DBH of palms by the species median DBH value over all censuses, except for *Socratea exorrhiza*, following @Rutishauser2020.
 
 ```{r median-dbh-palms}
-df_stem[Family == "Arecaceae" & Genus != "Socratea", dbh := median(dbh, na.rm = TRUE), .(Latin)]
+if (use_median_palm_dbh) {
+  df_stem[Family == "Arecaceae" & Genus != "Socratea", dbh := median(dbh, na.rm = TRUE), .(Latin)]
+}
 ```
 
 ### Using different allometric equations
@@ -211,7 +229,11 @@ df_stem[, chave05_h := agb_bci(dbh = dbh,
 
 ## reference allometry: chave 2014 with local height allometry
 df_stem[, agb := chave14_h]
+
+## basal area
+df_stem[, ba := pi*(dbh/200)^2]
 ```
+
 
 ### Applying the taper correction
 
@@ -221,6 +243,7 @@ The DBH of stems measured above 1.3 m was corrected for taper with the multi-spe
 df_stem[, b := exp(-2.0205 - 0.5053 * log(dbh) + 0.3748 * log(hom))]
 df_stem[!is.na(hom), dbh_t := dbh * exp(b * (hom - 1.3))]
 df_stem[, agb_t := agb_bci(dbh = dbh_t, wsg = wsg, palms = (Family == "Arecaceae"))]
+df_stem[, ba_t := pi*(dbh_t/200)^2]
 ```
 
 
@@ -250,10 +273,12 @@ df_stem[, dT := c(diff(year), NA), .(stemID)]
 # original data 
 df_stem[, Ddbh := c(diff(dbh)/diff(year), NA), .(stemID)]
 df_stem[, Dagb := c(diff(agb)/diff(year), NA), .(stemID)]
+df_stem[, Dba := c(diff(ba)/diff(year), NA), .(stemID)]
 
 # taper corrected data
 df_stem[, Ddbh_t := c(diff(dbh_t)/diff(year), NA), .(stemID)]
 df_stem[, Dagb_t := c(diff(agb_t)/diff(year), NA), .(stemID)]
+df_stem[, Dba_t := c(diff(ba_t)/diff(year), NA), .(stemID)]
 ```
 
 #### Correction for small stems in 1985
@@ -268,20 +293,27 @@ df_small <- subset(df_stem, stemID %in% small_stems)
 df_small[dbh < 5.5, dbh_r := floor(dbh/0.5)*0.5]
 
 # get small stems' mean AGB in 1990
-mean_agb <- df_small[year==1990 & dbh < 5.5, .(agb_m = mean(agb)), .(dbh_r)]
+mean_agb <- df_small[year==1990 & dbh < 5.5, 
+                     .(agb_m = mean(agb), 
+                       ba_m = mean(ba)), 
+                     .(dbh_r)]
 
-# add mean AGB to the data frame
+# add mean AGB and BA to the data frame
 df_small <- merge(df_small, mean_agb, all = TRUE, by = "dbh_r")[order(stemID, year)]
 
 # recalculate AGB growth
-df_small[, Dagb_small := c(diff(agb_m)/diff(year), NA), .(stemID)]
+df_small[, `:=`(Dagb_small = c(diff(agb_m)/diff(year), NA), 
+                Dba_small = c(diff(ba_m)/diff(year), NA)), .(stemID)]
 
 # substitute AGB growth with new values in original data frame
-df_small <- df_small[year==1985 & dbh < 5.5, c("stemID", "Dagb_small")]
+df_small <- df_small[year==1985 & dbh < 5.5, c("stemID", "Dagb_small", "Dba_small")]
 
 df_stem <- merge(df_stem, df_small, all.x = TRUE)
-df_stem[!is.na(Dagb_small) & year == 1985, `:=`(Dagb = Dagb_small, Dagb_t = Dagb_small)]
-df_stem[, Dagb_small := NULL]
+df_stem[!is.na(Dagb_small) & year == 1985, `:=`(Dagb = Dagb_small, 
+                                                Dagb_t = Dagb_small, 
+                                                Dba = Dba_small, 
+                                                Dba_t = Dba_small)]
+df_stem[, `:=`(Dagb_small = NULL, Dba_small = NULL)]
 ``` 
 
 #### Outlier substitution
@@ -291,30 +323,27 @@ In cases where the change in DBH was $\leq$ -2.5 cm yr$^{-1}$ or $\geq$ 7.5 cm y
 ```{r outlier-substitution}
 data.table::setorder(df_stem, stemID, date)
 
-# outlier values: HOm change or abnormal DBH changes
-df_stem[, hom_change := c(diff(hom) != 0, NA), .(stemID)]
+# outlier values: HOM change or abnormal DBH changes
+df_stem[, hom_change := c(abs(diff(hom)) > hom_change_threshold , NA), .(stemID)]
 df_stem[, hom_change := ifelse(is.na(hom_change) & !is.na(Ddbh),TRUE, hom_change)]
-df_stem[, outlier := !is.na(Ddbh) & (hom_change | Ddbh > 7.5 | Ddbh < -2.5)]
+df_stem[, outlier := !is.na(Ddbh) & (hom_change | Ddbh > upper_ddbh_threshold | Ddbh < lower_ddbh_threshold)]
 
 # relative AGB change per plot for survivors , by size class
-df_stem[, tot_rawp := sum(Dagb[!outlier],na.rm=T)/sum(agb[!outlier]), 
+df_stem[, `:=`(tot_rawp = sum(Dagb[!outlier],na.rm=T)/sum(agb[!outlier]),
+               tot_rawp_t = sum(Dagb_t[!outlier],na.rm=T)/sum(agb_t[!outlier]),
+               tot_rbap = sum(Dba[!outlier],na.rm=T)/sum(ba[!outlier]),
+               tot_rbap_t = sum(Dba_t[!outlier],na.rm=T)/sum(ba_t[!outlier])),
         .(size = cut(dbh, c(0, 10, 20, 50, 500)))]  
 
 # substitute outliers' AGB and BA change
 df_stem[, Dagb_s := ifelse(outlier == TRUE, tot_rawp*agb, Dagb)]
+df_stem[, Dba_s := ifelse(outlier == TRUE, tot_rbap*ba, Dba)]
 
-## check that there is no significant relationship between dbh and relative awp
+# substitute outliers' AGB and BA change
+df_stem[, Dagb_t_s := ifelse(outlier == TRUE, tot_rawp_t*agb_t, Dagb_t)]
+df_stem[, Dba_t_s := ifelse(outlier == TRUE, tot_rbap_t*ba_t, Dba_t)]
 
-# df_stem[order(dbh), .(tot_rawp = sum(Dagb[!outlier],na.rm=T)/sum(agb[!outlier])), 
-#         .(size = cut(dbh, c(0, 10, 20, 50, 500)))] 
-# df_stem[, .(tot_rawp_s = sum(Dagb[!outlier],na.rm=T)/sum(agb[!outlier]))]
-# df_stem[, .(tot_rawp_s = sum(Dagb[!outlier & dbh >= 10],na.rm=T)/sum(agb[!outlier]))]
-
-# df_keep <- df_stem[!hom_change & Ddbh < 5 & Ddbh > -0.5]
-# df_keep[, `:=`(rawp = awp/agb, rbap = bap/ba)]
-# regr <- lm(data = df_keep, log(rawp - min(rawp)+1e-16) ~ log(dbh) * plot)
-# # pvalues < 10%?
-# any(summary(regr)$coefficients[grep("\\(dbh\\):", rownames(summary(regr)$coefficients)),4] < 0.1)
+df_stem <- df_stem[, -grep("tot_r", colnames(df_stem)), with = FALSE]
 ```
 
 <!-- For each stem in which one or more values of AGB change were substitute, the full time series of AGB is then reconstructed from outlier-substituted AGB change by taking the last AGB estimate as a starting point, and estimating prior AGB values by subtracting the estimated AGB changes. This could also be done by taking any other measurement as a reference (e.g. the first one); we opted to start with the last measurement because measurement quality is better in the later censuses.  -->
@@ -347,7 +376,7 @@ df_stem[, Dagb_s := ifelse(outlier == TRUE, tot_rawp*agb, Dagb)]
 ### Estimating recruitment
 
 We added recruitment fluxes to aboveground woody productivity, as the biomass of all stems that were first measured in the next census. 
-<!-- We excluded AWP from trees recruited with DBH in cm greater than 10 + 5 * census interval in years, on the assumption that these are not truly new recruits.   -->
+We excluded AWP from trees recruited with DBH in cm greater than 10 + 7.5 * census interval in years, on the assumption that these are not truly new recruits.
 
 ```{r add-recruitment}
 # get previous measurement year_stem
@@ -377,7 +406,7 @@ df_stem[, fmeas := (date == min(date)), .(stemID)]
 recr <- df_stem[fmeas & census_year > 1985]
 
 ## check: recruits are small enough, their total biomass is not too large; exception is palms and secondary stems can recruit at large sizes
-large_recruits <- recr[dbh > 10 + 7.5*prevqdt & StemTag==1 & Family != "Arecaceae", 
+large_recruits <- recr[dbh > 10 + upper_ddbh_threshold*prevqdt & StemTag==1 & Family != "Arecaceae", 
                        c("census_year", "sp", "Genus", "Species","treeID", "StemTag", 
                          "stemID", "qyear", "prevqyear","prevqdt", "dbh", "hom")]
 large_recruits <- large_recruits[order(sp,census_year),]
@@ -408,9 +437,16 @@ recr[, `:=`(qyear = prevqyear,
             chave14_h = 0, 
             agb = 0, 
             agb_t = 0, 
+            ba = 0, 
+            ba_t = 0, 
             Dagb = agb/prevqdt,
             Dagb_t = agb_t/prevqdt,
-            Dagb_s = agb/prevqdt
+            Dagb_s = agb/prevqdt,
+            Dagb_t_s = agb_t/prevqdt,
+            Dba = ba/prevqdt,
+            Dba_t = ba_t/prevqdt,
+            Dba_s = ba/prevqdt,
+            Dba_t_s = ba_t/prevqdt
 )]
 
 # combine with stem data
@@ -432,7 +468,9 @@ df_stem <- merge(df_stem, df_year_mort, by = "stemID", all = TRUE)
 
 df_stem[, `:=`(
   DagbM = agb * (!is.na(census_mort) & census_year == census_mort) / qdt,
-  DagbM_t = agb_t * (!is.na(census_mort) & census_year == census_mort) / qdt
+  DagbM_t = agb_t * (!is.na(census_mort) & census_year == census_mort) / qdt,
+  DbaM = ba * (!is.na(census_mort) & census_year == census_mort) / qdt,
+  DbaM_t = ba_t * (!is.na(census_mort) & census_year == census_mort) / qdt
 )]
 
 ## RM the missing stems are not considered as dead but are not accounted for in total biomass
@@ -450,78 +488,60 @@ df_stem_melt <-
   data.table::melt(
     df_stem,
     id.vars = c("stemID", "treeID", "census_year", "quadrat", "DFstatus", "size", "sp"), 
-    measure.vars = grep("chave|Dagb|agb_", colnames(df_stem)),
+    measure.vars = grep("chave|Dagb|agb_|ba|Dba", colnames(df_stem)),
     variable.name = "method",
   )
 
-df_stem_melt <- subset(df_stem_melt, !is.na(value))
+df_stem_melt <- subset(df_stem_melt, !is.na(value) & quadrat != "")
 
 # create variables: agb, awp, awm
-df_stem_melt[, variable := c("agb", "awp", "awm")[1 + grepl("Dagb", method) + grepl("agbM", method)]]
+df_stem_melt[, variable := c("stock", "gain", "loss")[1 + 
+                                                        grepl("Dagb|Dba", method) + 
+                                                        grepl("agbM|baM", method)]]
 
 # rename methods
-df_stem_melt[grepl("_s", method), method := "chave14_h+subs"]
-df_stem_melt[grepl("_t", method), method := "chave14_h+taper"]
-df_stem_melt[method %in% c("Dagb", "DagbM"), method := "chave14_h"]
-
-## for outlier substitution: add chave14_h for agb and awm
-df_stem_melt_subs <- df_stem_melt[variable %in% c("agb", "awm") & method == "chave14_h"]
-df_stem_melt_subs[, method := "chave14_h+subs"]
-df_stem_melt <- rbind(df_stem_melt, df_stem_melt_subs)
+df_stem_melt[, method := gsub("_s", "+subs", method)]
+df_stem_melt[, method := gsub("_t", "+taper", method)]  
+df_stem_melt[, method := gsub("DagbM|Dagb|agb", "chave14_h", method)]
+df_stem_melt[, method := gsub("DbaM|Dba", "ba", method)]
 ```
 
 
-<!-- ```{r some-tests} -->
-<!-- list_status = lapply(seq(1985, 2010, 5), function(cns) { -->
-<!--   test = df_stem[, .( -->
-<!--     alive = all(c(cns, cns+5) %in% census_year), -->
-<!--     recr = min(census_year) == (cns + 5), -->
-<!--     dead = (unique(census_mort)==cns), -->
-<!--     missing2 = (cns %in% census_year) & !((cns + 5) %in% census_year) & unique(census_mort) > cns, # stems missing in this census -->
-<!--     missing1 = !(cns %in% census_year) & ((cns + 5) %in% census_year) & min(census_year) < (cns + 5), # stems missing in next census -->
-<!--     agb = agb[census_year==cns], -->
-<!--     agb_n = agb[census_year==cns+5]), -->
-<!--     .(stemID)] -->
+```{r repeat-some-values}
+## for outlier substitution: add chave14_h for agb and awm
+df_stem_melt_subs <- df_stem_melt[variable %in% c("stock", "loss") & method == "chave14_h"]
+df_stem_melt_subs[, method := "chave14_h+subs"] 
+df_stem_melt <- rbind(df_stem_melt, df_stem_melt_subs)
 
-<!--   test = test[alive|dead|recr|missing1|missing2] -->
+# repeat for taper + outlier substitution
+df_stem_melt_subs <- df_stem_melt[variable %in% c("stock", "loss") & method == "chave14_h+taper"]
+df_stem_melt_subs[, method := "chave14_h+taper+subs"] 
+df_stem_melt <- rbind(df_stem_melt, df_stem_melt_subs)
 
-<!--   df = melt(test, id.vars = c("stemID", "agb", "agb_n"), measure.vars = c("alive", "recr", "missing1", "missing2", "dead"), variable.name = "status") -->
-<!--   df = subset(df, value==TRUE)[, -"value"] -->
+## for outlier substitution: add ba and bam
+df_stem_melt_subs <- df_stem_melt[variable %in% c("stock", "loss") & method == "ba"]
+df_stem_melt_subs[, method := "ba+subs"] 
+df_stem_melt <- rbind(df_stem_melt, df_stem_melt_subs)
 
-<!--   df_tot = df[, .(agb = sum(agb)/50, agb_n = sum(agb_n)/50), .(status)] -->
-<!--   return(df_tot) -->
-<!-- }) -->
+# repeat for taper + outlier substitution
+df_stem_melt_subs <- df_stem_melt[variable %in% c("stock", "loss")  & method == "ba+taper"]
+df_stem_melt_subs[, method := "ba+taper+subs"] 
+df_stem_melt <- rbind(df_stem_melt, df_stem_melt_subs)
+```
 
-<!-- names(list_status) = seq(1985, 2010, 5) -->
+```{r add-number-trees}
+## all
+df_stem_melt_n <- df_stem_melt[method=="chave14_h" & DFstatus=="alive"]
+df_stem_melt_n[, `:=`(variable = "stock", method = "n", value = 1, stemID = 0)] 
+df_stem_melt_n <- unique(df_stem_melt_n)
+df_stem_melt <- rbind(df_stem_melt, df_stem_melt_n)
 
-<!-- df_tot = rbindlist(list_status, idcol="year") -->
-
-<!-- df_tot[, .(sum(agb_n, na.rm=TRUE)), .(year)] -->
-<!-- df_plot[method=="chave14_h" & variable=="agb"] -->
-
-<!-- df1 = df_tot[, .(growth = (sum(agb_n[status=="alive"]) - sum(agb[status=="alive"]))/5, -->
-<!--                  awp = (sum(agb_n[status %in% c("recr", "alive")], na.rm = TRUE) -  -->
-<!--                           sum(agb[status %in% c("recr", "alive")], na.rm = TRUE))/5, -->
-<!--                  awm = (sum(agb[status =="dead"], na.rm = TRUE) )/5, -->
-<!--                  recr = sum(agb_n[status %in% c("recr") ])/5), .(year = as.numeric(year))] -->
-
-<!-- df2 = df_stem[, .( -->
-<!--   growth = sum(Dagb[agb!=0], na.rm = TRUE)/50,  -->
-<!--   recr = sum(Dagb[agb==0], na.rm = TRUE)/50,  -->
-<!--   awm = sum(DagbM, na.rm = TRUE)/50,  -->
-<!--   awp = sum(Dagb, na.rm = TRUE)/50),  -->
-<!--   .(year = census_year)] -->
-
-<!-- df3 = df_plot[method=="chave14_h" & variable=="awm"] -->
-
-<!-- df4 = df_stem_melt[, .( -->
-<!--   awp = sum(value[variable=="awp"])/50), -->
-<!--   .(year = census_year, method)] -->
-<!-- df4 = subset(df4, awp!=0) -->
-
-<!-- merge(df2, df1, by = "year") -->
-<!-- merge(df2, df3[, c("year", "tot")], by = "year") -->
-<!-- ``` -->
+## above 10 cm dbh
+df_stem_melt_n10 <- df_stem_melt[method=="chave14_h" & DFstatus=="alive"& size != "[1,10]"]
+df_stem_melt_n10[, `:=`(variable = "stock", method = "n10", value = 1, stemID = 0)] 
+df_stem_melt_n10 <- unique(df_stem_melt_n10)
+df_stem_melt <- rbind(df_stem_melt, df_stem_melt_n10)
+```
 
 Finally, we apply the correction proposed by @Kohyama2019 to correct estimates of woody productivity for unrecorded growth between two censuses. 
 
@@ -547,7 +567,7 @@ aggregate_agb_dyn <- function(data = df_stem_melt,
                               group, # grouping factor
                               area,  # unit area 
                               nboot = 0, # bootstrap over quadrats?
-                              kohyama = FALSE, # apply the Kohyama et al 2019 correction?
+                              kohyama = TRUE, # apply the Kohyama et al 2019 correction?
                               delta = FALSE # calculate annualized changes in AGB values and associated uncertainties?
 ) {
   
@@ -559,10 +579,11 @@ aggregate_agb_dyn <- function(data = df_stem_melt,
     
     # wide format for kohyama correction
     df <- data.table::dcast(df, year + group + quadrat ~ variable)
-    df[order(year), dT := c(diff(year), NA), .(group, quadrat)]
+    dfdt <- df[order(year), .(year = unique(year), dT = c(diff(unique(year)), NA)), .(quadrat)]
+    df <- merge(df, dfdt, by = c("quadrat", "year"))
     
     if (delta) # get change in agb
-      df[order(year), dagb := c(diff(agb)/diff(year), NA), .(group, quadrat)]
+      df[order(year), delta := c(diff(stock)/diff(year), NA), .(group, quadrat)]
     
   } else {
     
@@ -574,21 +595,21 @@ aggregate_agb_dyn <- function(data = df_stem_melt,
     df[order(year), dT := c(diff(year), NA), .(group)]
     
     if (delta) # get change in agb
-      df[order(year), dagb := c(diff(agb)/diff(year), NA), .(group)]
+      df[order(year), delta := c(diff(stock)/diff(year), NA), .(group)]
   }
   
   if (kohyama) {
     # avoid NAs and change them into zeros (no observation = null flux)
-    df[is.na(awp) & year != max(year), awp := 0]
-    df[is.na(awm) & year != max(year), awm := 0]
+    df[is.na(gain) & year != max(year), awp := 0]
+    df[is.na(loss) & year != max(year), awm := 0]
     # apply Kohyama correction 
-    df[, awp := kohyama_correction(agb, awp, awm, dT, output = "prod")]
-    df[, awm := kohyama_correction(agb, awp, awm, dT, output = "mort")]
+    df[, awp := kohyama_correction(stock, gain, loss, dT, output = "prod")]
+    df[, awm := kohyama_correction(stock, gain, loss, dT, output = "mort")]
   }
   
   # to long format
   df <- data.table::melt(df, 
-                         measure.vars = grep("agb|aw", colnames(df), value  = TRUE), 
+                         measure.vars = grep("gain|loss|stock|delta", colnames(df), value = TRUE), 
                          id.vars = c("group", "year"))
   df <- subset(df, !is.na(value))
   
@@ -630,24 +651,80 @@ df_plot_kohyama <- subset(aggregate_agb_dyn(
   kohyama = TRUE, 
   nboot = 1000, 
   delta = TRUE
-), variable %in% c("awp", "awm"))
+), variable %in% c("gain", "loss"))
 df_plot_kohyama[, method := paste0(method, "+kohyama")]
 
-df_plot <- rbind(df_plot, df_plot_kohyama)
+## same methods as sullivan et al 2020
+df_plot_sullivan <- aggregate_agb_dyn(
+  data = df_stem_melt[size != "[1,10]" & method == "chave14_h"],
+  group = "method",
+  area = 50,
+  kohyama = TRUE, 
+  nboot = 1000, 
+  delta = TRUE
+)
+df_plot_sullivan[, method := "chave14_h_dbh10+kohyama"]
+
+df_plot <- rbind(df_plot, df_plot_kohyama, df_plot_sullivan)
 ```
 
 For all other aggregated AGB data, we used taper-corrected DBHs, the @Chave2014 allometric equation (without height), and applied outlier substitution for AWP but not AGB.   
 
-```{r subset-corrections}
-df_stem_melt <- subset(df_stem_melt, method == "chave14_h+subs")
-```
+### By species
+
+```{r aggr-by-species}
+df_species_agb <-
+  aggregate_agb_dyn(
+    data = df_stem_melt[method == "chave14_h+subs"],
+    "sp",
+    area = 50,
+    nboot = 1000,
+    kohyama = FALSE
+  )
+
+df_species_ba <-
+  aggregate_agb_dyn(
+    data = df_stem_melt[method == "ba+subs"],
+    "sp",
+    area = 50,
+    nboot = 1000,
+    kohyama = FALSE
+  )
+
+df_species_n <-
+  aggregate_agb_dyn(
+    data = df_stem_melt[method == "n"],
+    "sp",
+    area = 50,
+    nboot = 1000,
+    kohyama = FALSE
+  )
+
+df_species_n10 <-
+  aggregate_agb_dyn(
+    data = df_stem_melt[method == "n10"],
+    "sp",
+    area = 50,
+    nboot = 1000,
+    kohyama = FALSE
+  )
+
+df_species <- rbind(df_species_agb, df_species_ba, df_species_n, df_species_n10)
+``` 
 
 ### By size
 
 We also calculated the mean AGB and AWP by size class over all years. 
 
 ```{r aggr-by-size}
-df_size <- aggregate_agb_dyn(group = "size", area = 50, nboot = 1000)
+df_size <-
+  aggregate_agb_dyn(
+    data = df_stem_melt[method == "chave14_h+subs"],
+    group = "size",
+    area = 50,
+    nboot = 1000,
+    kohyama = use_kohyama19_correction
+  )
 ```
 
 ### By plant functional type
@@ -682,14 +759,11 @@ ruger_data <- rbind(ruger_data, swartzia2)
 Species plant functional types were then added to the census data, and we calculated the mean of AGB and AWP across censuses by plant functional type. 
 
 ```{r aggr-by-pft}
-df_stem_melt <- merge(df_stem_melt, ruger_data[, c("sp", "PFT")], by = "sp", all.x = TRUE)
+df_ruger <- merge(df_stem_melt[method == "chave14_h+subs"], 
+                  ruger_data[, c("sp", "PFT")], by = "sp", all.x = TRUE)
 
-df_pft <- aggregate_agb_dyn("PFT", area = 50, nboot = 1000)
+df_pft <- aggregate_agb_dyn(data = df_ruger, "PFT", area = 50, nboot = 1000, kohyama = use_kohyama19_correction)
 ``` 
-
-<!-- Russo et al. 2020: didn't find codes and data on fgeo github repo -->
-
-<!-- Powell et al 2018: not real data (uses 1 value per PFT) -->
 
 #### Test other definition of plant functional types: Rubio et al 2022
 
@@ -756,11 +830,13 @@ tabsp[,.(pa = sum(agb) / sum(tabsp$agb)*100, ps = sum(n) / sum(tabsp$n)*100), .(
 
 Species plant functional types were then added to the census data, and we calculated the mean of AGB and AWP across censuses by plant functional type. 
 
-```{r aggr-by-pft-rubio}
-df_stem_melt <- merge(df_stem_melt, rubio_tab, by = "sp", all.x = TRUE)
+```{r aggr-by-fg-rubio}
+df_rubio <- merge(df_stem_melt[method == "chave14_h+subs"], 
+                  ruger_data[, c("sp", "PFT")], by = "sp", all.x = TRUE)
 
-df_pft2 <- aggregate_agb_dyn("FG", area = 50, nboot = 1000)
+df_pft2 <- aggregate_agb_dyn(data = df_rubio, "PFT", area = 50, nboot = 1000)
 ``` 
+
 
 ### By habitat 
 
@@ -773,10 +849,11 @@ load("bci_habitat.rda")
 df_stem_melt[, q20 := as.numeric(quadrat)]
 
 ## Merge with census data
-df_stem_melt <- merge(df_stem_melt, bci_habitat[, c("q20", "habitat")], by = "q20", all.x = TRUE)
+df_stem_habitat <- merge(df_stem_melt[method == "chave14_h+subs"],
+                         bci_habitat[, c("q20", "habitat")], by = "q20", all.x = TRUE)
 
 # aggregate, unit area = area of a quadrat (in ha)
-df_hab <- aggregate_agb_dyn("habitat", area = 0.04, nboot = 1000)
+df_hab <- aggregate_agb_dyn(data = df_stem_habitat, "habitat", area = 0.04, nboot = 10)
 df_hab <- subset(df_hab, !is.na(habitat))
 
 # divide by number of quadrats in each habitat
@@ -784,7 +861,6 @@ df_hab[, `:=`(tot = tot/sum(bci_habitat$habitat==habitat),
               lwr = lwr/sum(bci_habitat$habitat==habitat), 
               upr = upr/sum(bci_habitat$habitat==habitat)), .(habitat)]
 ```
-
 
 ## Crown-distributed AGB and AWP
 
@@ -924,24 +1000,24 @@ area_circle_square <- function(x0, y0, w, cx, cy, r)
 ```
 
 
-### For visualization: pixels of 2x2m; only 2010
+<!-- ### For visualization: pixels of 2x2m; only 2010 -->
 
-```{r crown-distribution-visualisation}
-dftemp <- df_stem[year==2010]
+<!-- ```{r crown-distribution-visualisation} -->
+<!-- dftemp <- df_stem[year==2010] -->
 
-# crown allometry from Martinez Cano et al., 2019
-dftemp[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ]
-dftemp[, dbh_t := NULL]
+<!-- # crown allometry from Martinez Cano et al., 2019 -->
+<!-- dftemp[, rcrown := sqrt((0.57 * dbh_t ^ 1.34)/pi) ] -->
+<!-- dftemp[, dbh_t := NULL] -->
 
-df_crown_vis <- dist_crowns(wpix = 2,
-                            gx = dftemp$gx,
-                            gy = dftemp$gy,
-                            rcrown = dftemp$rcrown,
-                            values = list(dftemp$agb, 
-                                          dftemp$Dagb_s, 
-                                          dftemp$DagbM))
-colnames(df_crown)[3:5] <- c("agb", "awp", "awm")
-```
+<!-- df_crown_vis <- dist_crowns(wpix = 2, -->
+<!--                             gx = dftemp$gx, -->
+<!--                             gy = dftemp$gy, -->
+<!--                             rcrown = dftemp$rcrown, -->
+<!--                             values = list(dftemp$agb,  -->
+<!--                                           dftemp$Dagb_s,  -->
+<!--                                           dftemp$DagbM)) -->
+<!-- colnames(df_crown)[3:5] <- c("agb", "awp", "awm") -->
+<!-- ``` -->
 
 ### For analysis: per quadrat, then aggregate values per habitat
 
@@ -979,8 +1055,7 @@ df_crown_hab <- merge(df_crown_hab, bci_habitat, by = c("x", "y"), all = TRUE)
 
 df_crown_hab[order(year), dagb := c(diff(agb)/diff(year), NA), .(q20)]
 
-kohyama <- FALSE
-if (kohyama) {
+if (use_kohyama19_correction) {
   # avoid NAs and change them into zeros (no observation = null flux)
   df_crown_hab[is.na(awp) & year != max(year), awp := 0]
   df_crown_hab[is.na(awm) & year != max(year), awm := 0]
@@ -1000,8 +1075,8 @@ df_crown_hab <- subset(df_crown_hab, !is.na(value))
 n = 1000
 if (n > 0) {
   df_crown_hab <- df_crown_hab[, .(tot = sum(value),
-                                   lwr = bootstrap_q(value, nboot, pb = 0.025), 
-                                   upr = bootstrap_q(value, nboot, pb = 0.975)), 
+                                   lwr = bootstrap_q(value, n, pb = 0.025), 
+                                   upr = bootstrap_q(value, n, pb = 0.975)), 
                                .(habitat, year, variable)]
 }
 
@@ -1014,9 +1089,7 @@ df_crown_hab[, `:=`(tot = tot/sum(bci_habitat$habitat==habitat),
 # Save results 
 
 ```{r save-results, echo = FALSE}
-df_ind <- subset(df_stem, stemID %in% c(2031, 3671, 1428))
-
-save(df_plot, df_size, df_pft, df_pft2, df_ind, df_hab, df_crown, df_crown_hab, file = "cache.rda")
+save(df_plot, df_size, df_pft, df_pft2, df_hab, df_species, df_crown_hab, file = "cache.rda")
 ```
 
 
