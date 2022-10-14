@@ -284,7 +284,7 @@ ggplot2::ggplot(dfig, ggplot2::aes(x = year, y = tot)) +
 ```
 
 
-```{r spatial, fig.height=7, fig.width=6, fig.cap = "Spatial variation in (a) aboveground biomass (AGB, Mg/ha) and (b) aboveground woody productivity (AWP, Mg/ha) among habitats, as defined by Harms et al., 2001; panel (c) shows the location of habitats in the 50-ha plot. Points represent the total plot value, averaged over censuses and census intervals, and segments represent the 95% confidence interval obtained by bootstrapping over 20x20m quadrats.  AGB and AWP values for habitats, as well as aboveground woody mortality (AWM) and changes in AGB between censuses, are provided in Table S2."}
+```{r spatial, fig.height=7, fig.width=6, fig.cap = "Spatial variation in (a) aboveground biomass (AGB, Mg/ha) and (b) aboveground woody productivity (AWP, Mg/ha) among habitats, as defined by Harms et al., 2001; panel (c) shows the location of habitats in the 50-ha plot. Points represent the total plot value, averaged over censuses and census intervals (starting in 1995), and segments represent the 95% confidence interval obtained by bootstrapping over 20x20m quadrats. The horizontal lines represent the total value of the plot. AGB and AWP values for habitats, as well as aboveground woody mortality (AWM) and changes in AGB between censuses, are provided in Table S2."}
 
 # change habitat names to match Harms et al 2001
 levels(bci_habitat$habitat) <- paste0(toupper(substr(levels(bci_habitat$habitat), 1, 1)), 
@@ -306,13 +306,13 @@ ghabitat <- ggplot(bci_habitat) +
   theme_bw()
 
 # prepare data for the figure
-dfig <- df_crown_hab[variable %in% c("agb", "awp")]
+dfig <- df_hab[variable %in% c("stock", "gain")]
 # intermediate census years for agb fluxes
-dfig[variable != "agb", year := year + 2.5]
+dfig[variable != "stock", year := year + 2.5]
 # dfig[variable == "awp", year := year - 0.05]
 # dfig[variable == "awm", year := year + 0.05]
 
-dfig$variable <- factor(dfig$variable, levels = c("agb", "awp"))
+dfig$variable <- factor(dfig$variable, levels = c("stock", "gain"))
 levels(dfig$variable) <- c("'AGB (Mg/ha)'", 
                            "'AWP (Mg/ha/yr)'")
 
@@ -325,12 +325,21 @@ levels(dfig$habitat) <- gsub("Young", "Young forest", levels(dfig$habitat))
 
 
 ## average over census years
-dfig <- dfig[, .(tot = mean(tot), lwr = mean(lwr),  upr = mean(upr)), .(habitat, variable)]
+dfig <- dfig[year > 1990, .(tot = mean(tot), lwr = mean(lwr),  upr = mean(upr)), .(habitat, variable)]
 
 ## panel labels
 ann_panels <- data.frame(text = letters[1:2], variable = factor(levels(dfig$variable), levels = levels(dfig$variable)))
 
+plot_agb <- df_plot[method=="chave14_h+subs" & variable=="stock" & year > 1990, 
+                    .(tot = mean(tot), lwr = mean(lwr), upr = mean(upr))]
+plot_awp <- df_plot[method=="chave14_h+subs+kohyama" & variable=="gain" & year > 1990, 
+                     .(tot = mean(tot), lwr = mean(lwr), upr = mean(upr))]
+
+df_hline <- data.frame(plot_tot = c(plot_agb$tot, plot_awp$tot), 
+                       variable = factor(levels(dfig$variable), levels = levels(dfig$variable)))
+                                         
 g1 <- ggplot2::ggplot(dfig, ggplot2::aes(x = habitat, y = tot)) +
+  geom_hline(data = df_hline, aes(yintercept = plot_tot), lty = 2) +
   ggplot2::geom_pointrange(ggplot2::aes(ymin = lwr, ymax = upr, color = habitat)) +
   ggplot2::labs(x = "", y = "", color = "") +
   ggplot2::geom_text(data = ann_panels, aes(label = text), x = -Inf, y = Inf, hjust = 5, vjust = 0.5, size = 5) +
@@ -517,7 +526,209 @@ sdagb <- ggplot(subset(sullivan_mul, Mort < 20), aes(x = AGWP-Mort)) +
   theme(legend.position = "none")
 
 ggpubr::ggarrange(sagb, sdagb, sawp,sawm, ncol=2, nrow = 2, labels = "auto")
+
+## quantiles of BCI's values
+# global
+round(ecdf(sullivan_mul$AGWP-sullivan_mul$Mort)(df_mean$delta)*100)
+round(ecdf((sullivan_mul$AGWP-sullivan_mul$Mort)[sullivan_mul$Continent == "SA"])(df_mean$delta)*100)
+
+quantile((sullivan_mul$AGWP-sullivan_mul$Mort)[sullivan_mul$Continent == "SA"], 0.22, na.rm = T)
+```
+
+## Supplemental tables
+
+Table SXX - Total above-ground woody biomass (AGB; Mg/ha), above-ground biomass change (deltaAGB; Mg/ha/yr), above-ground woody productivity (AWP; Mg/ha/yr), above-ground woody mortality (AWM; Mg/ha/yr), basal area (BA; m$^2$/ha/ha), basal area change (deltaBA ; m$^2$/ha/yr), basal area productivity (BAP; m$^2$/ha/yr), basal area mortality (BAM; Mg/ha/yr), number of trees (N; /ha), change in number of trees (deltaN; /ha/yr), number of trees with a diameter $\geq$ 10 cm (N10; /ha), change in number of trees with a diameter $\geq$ 10 cm (deltaN10; /ha/yr). Above-ground biomass was estimated using the allometry of Chave et al. (2014) with the generalized local height allometry of Martinez Cano et al. (2019). The following corrections were applied where meaningful: the 'Taper correction' of Cushman et al. (2014); the 'Kohyama correction' for instantaneous fluxes (Kohyama et al., 2019); and the 'Outlier substitution' for trees with excessive change in diameter and/or height measurement (see Methods). We provide values over the entire plot and the lower and upper limits of the 95% confidence interval (in parentheses), estimated after bootstrapping 20 x 20 m quadrats with 1000 replicates.
+
+```{r supp-table-qaqc}
+load("cache.rda")
+
+dtab <- df_plot[!(grepl("chave05|dbh10", method) | method=="chave14")]
+
+dtab[, type := variable]
+
+dtab[, variable := tstrsplit(gsub("chave14_h", "agb", dtab$method), "\\+")[[1]]]
+
+# set of corrections
+dtab[,  correction := gsub("chave14_h\\+|ba\\+", "", method)]
+
+dtab[grep("n|ba|chave", correction), correction := "No correction"]
+
+dtab[, correction := gsub("taper", "taper correction", correction)]
+dtab[, correction := gsub("subs", "outlier substitution", correction)]
+dtab[, correction := gsub("kohyama", "Kohyama", correction)]
+dtab[, correction := gsub("\\+", "; ", correction)]
+
+# value and 95% CI
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, year + correction ~ variable + type, value.var = "value")
+
+dtab$interval <- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+colnames(dtab) <- c("Census year", "correction", 
+                    "AWP", "AWM", "AGB", "deltaAGB", 
+                    "BAP", "BAM", "BA", "deltaBA",
+                    "N", "deltaN", "N10", "deltaN10",
+                    "Census interval") 
+
+dtab[, `Taper correction` := c("No", "Yes")[1+grepl("taper", correction)]]
+dtab[, `Kohyama correction` := c("No", "Yes")[1+grepl("ohyama", correction)]]
+dtab[, `Outlier substitution` := c("No", "Yes")[1+grepl("subs", correction)]]
+
+dtab <- dtab[ , c("Census year", "Census interval", 
+                  "Taper correction", "Kohyama correction", "Outlier substitution", 
+                  "AGB", "deltaAGB", "AWP", "AWM", 
+                  "BA", "deltaBA", "BAP", "BAM", 
+                    "N", "deltaN", "N10", "deltaN10")]
+
+setorder(dtab, `Taper correction`, `Kohyama correction`, `Outlier substitution`, 
+         `Census year`, `Census interval`)
+
+write.csv(dtab, file = "stables/table-qaqc.csv", row.names = FALSE)
+```
+
+Table SXX - Total above-ground woody biomass (AGB; Mg/ha), above-ground biomass change (deltaAGB; Mg/ha/yr), above-ground woody productivity (AWP; Mg/ha/yr), and above-ground woody mortality (AWM; Mg/ha/yr) per habitat (as defined in Harms et al., 2001). Above-ground biomass was estimated using the allometry of Chave et al. (2014) with the generalized local height allometry of Martinez Cano et al. (2019). The 'Kohyama correction' for instantaneous fluxes (Kohyama et al., 2019) and the 'Outlier substitution' for trees with excessive change in diameter and/or height measurement (see Methods) were applied. We provide values over the entire plot and the lower and upper limits of the 95% confidence interval (in parentheses), estimated after bootstrapping 20 x 20 m quadrats with 1000 replicates.
+
+```{r supp-table-habitats}
+dtab <- df_crown_hab
+
+# change name of habitat to match publication: first letter in upper case and add spaces
+levels(dtab$habitat) <- paste0(toupper(substr(levels(dtab$habitat), 1, 1)), 
+                                      substr(levels(dtab$habitat), 2, nchar(levels(dtab$habitat))))
+levels(dtab$habitat) <- gsub("Hi_", "High ", levels(dtab$habitat))
+levels(dtab$habitat) <- gsub("_", " ", levels(dtab$habitat))
+levels(dtab$habitat) <- gsub("Young", "Young forest", levels(dtab$habitat))
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, habitat + year ~ variable, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+dtab <- dtab[, c("habitat", "year", "interval", "agb", "dagb", "awp", "awm")]
+
+colnames(dtab) <- c("Habitat", "Census year", "Census interval", "AGB", "deltaAGB", "AWP", "AWM")
+
+write.csv(dtab, file = "stables/table-habitat.csv", row.names = FALSE)
+```
+
+Table SXX - Total above-ground woody biomass (AGB; Mg/ha), above-ground biomass change (deltaAGB; Mg/ha/yr), above-ground woody productivity (AWP; Mg/ha/yr), and above-ground woody mortality (AWM; Mg/ha/yr) per size class. Above-ground biomass was estimated using the allometry of Chave et al. (2014) with the generalized local height allometry of Martinez Cano et al. (2019). The 'Kohyama correction' for instantaneous fluxes (Kohyama et al., 2019) and the 'Outlier substitution' for trees with excessive change in diameter and/or height measurement (see Methods) were applied. We provide values over the entire plot and the lower and upper limits of the 95% confidence interval (in parentheses), estimated after bootstrapping 20 x 20 m quadrats with 1000 replicates.
+
+```{r supp-table-size}
+dtab <- df_size
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, size + year ~ variable, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+dtab <- dtab[, c("size", "year", "interval", "stock", "gain", "loss")]
+
+colnames(dtab) <- c("Size class (cm)", "Census year", "Census interval", "AGB", "AWP", "AWM")
+
+write.csv(dtab, file = "stables/table-size.csv", row.names = FALSE)
+```
+
+Table SXX - Total above-ground woody biomass (AGB; Mg/ha), above-ground biomass change (deltaAGB; Mg/ha/yr), above-ground woody productivity (AWP; Mg/ha/yr), and above-ground woody mortality (AWM; Mg/ha/yr) per plant functional type, as defined in Rüger et al. (2020). Above-ground biomass was estimated using the allometry of Chave et al. (2014) with the generalized local height allometry of Martinez Cano et al. (2019). The 'Kohyama correction' for instantaneous fluxes (Kohyama et al., 2019) and the 'Outlier substitution' for trees with excessive change in diameter and/or height measurement (see Methods) were applied. We provide values over the entire plot and the lower and upper limits of the 95% confidence interval (in parentheses), estimated after bootstrapping 20 x 20 m quadrats with 1000 replicates.
+
+```{r supp-table-pft}
+dtab <- df_pft
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, PFT + year ~ variable, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+dtab <- dtab[, c("PFT", "year", "interval", "stock", "gain", "loss")]
+
+colnames(dtab) <- c("PFT", "Census year", "Census interval", "AGB", "AWP", "AWM")
+
+write.csv(dtab, file = "stables/table-pft.csv", row.names = FALSE)
 ```
 
 
+Table SXX - Species total above-ground woody biomass (AGB; Mg/ha), above-ground woody productivity (AWP; Mg/ha/yr), above-ground woody mortality (AWM; Mg/ha/yr), basal area (BA; m$^2$/ha/ha), basal area productivity (BAP; m$^2$/ha/yr), basal area mortality (BAM; Mg/ha/yr), number of trees (N; /ha), and number of trees with a diameter $\geq$ 10 cm (N10; /ha). Above-ground biomass was estimated using the allometry of Chave et al. (2014) with the generalized local height allometry of Martinez et al. (2019); aboveground woody productivity and basal area productivity were corrected by substituting outliers; we used the Kohyama et al. (2019) correction to estimate instantaneous AGB and BA fluxes. We provide values over the entire plot and the lower and upper limits of the 95% confidence interval (in parentheses), estimated after bootstrapping 20 x 20 m quadrats with 1000 replicates.
+
+```{r supp-table-species}
+dtab <- df_species
+
+# get species names
+dryad_data_path <- rdryad::dryad_download("10.15146/5xcp-0d46")
+load(grep("spp", dryad_data_path$`10.15146/5xcp-0d46`, value = TRUE))
+dtab <- merge(dtab, bci.spptable[, c("sp", "Latin")], by = "sp", all.x = TRUE) 
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab[, type := variable]
+
+dtab[, variable := factor(method, levels = c("chave14_h+subs", "ba+subs", "n", "n10"))]
+levels(dtab$variable) <- c("AGB", "BA", "N", "N10")
+
+
+dtab <- data.table::dcast(dtab, Latin + year ~ variable + type, value.var = "value")
+
+dtab$interval<- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+colnames(dtab) <- c("Species", "Census year",  
+                    "AWP", "AWM", "AGB", 
+                    "BAP", "BAM", "BA", 
+                    "N", "N10",
+                    "Census interval") 
+
+dtab <- dtab[, c("Species", "Census year", "Census interval", "AGB", "AWP", "AWM","BA", "BAP", "BAM","N", "N10")]
+
+write.csv(dtab, file = "stables/table-species.csv", row.names = FALSE)
+```
+
+Table SXX - Total above-ground woody biomass (AGB; Mg/ha) for the entire BCI 50-ha, as estimated with different biomass and height allometries. The two biomass allometries used were those of Chave et al. (2005) and Chave et al. (2014), as specified in the column "Biomass allometry". 
+We used biomass allometries without height information ("Local height allometry" = No) or using the generalized height equation of Martinez Cano et al. (2019) for BCI ("Local height allometry" = Yes). 
+In the "AGB" column, we provide the estimated AGB value over the entire plot and the lower and upper limits of the 95% confidence interval (in parentheses), estimated after bootstrapping 20 x 20 m quadrats with 1000 replicates. 
+
+```{r sup-table-allometries}
+dtab <- df_plot[!grepl("\\+", method) & grepl("chave", method)]
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, year + method ~ variable, value.var = "value")
+
+dtab$interval <- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+colnames(dtab) <- c("Census year", "method", "AWP", "AWM", "AGB", "deltaAGB", "Census interval") 
+
+dtab[, `Biomass allometry` := c("Chave et al., 2005", "Chave et al., 2014")[1+grepl("14", method)]]
+dtab[, `Local height allometry` := c("No", "Yes")[1+grepl("_h", method)]]
+
+dtab <- dtab[ , c("Biomass allometry", "Local height allometry", 
+                  "Census year", "Census interval", 
+                  "AGB")]
+
+setorder(dtab, `Biomass allometry`, `Local height allometry`, `Census year`, `Census interval`)
+
+write.csv(dtab, file = "stables/table-allometries.csv", row.names = FALSE)
+```
+
+
+Table Sxx - Total above-ground woody biomass (AGB; Mg/ha), variation in above-ground woody biomass (deltaAGB; Mg/ha/yr), above-ground woody productivity (AWP; Mg/ha/yr), above-ground woody mortality (AWM; Mg/ha/yr), with methods corresponding to Sullivan et al. (2020) for a global comparison. Only stems with diameters greater than 10 cm were included; we estimated AGB using the biomass equation of Chave et al. (2014) with a local generalized height allometry (Martinez Cano et al., 2019); we used the correction of Kohyama et al. (2019) to estimate instantaneous fluxes of AGB and BA. We provide values over the entire plot and the lower and upper limits of the 95% confidence interval (in parentheses), estimated after bootstrapping 20 x 20 m quadrats with 1000 replicates.
+
+```{r sup-table-globcomparison}
+dtab <- df_plot[grepl("dbh10", method)]
+
+dtab[, value := paste0(signif(tot, 3), " (", signif(lwr, 3), "-", signif(upr, 3), ")")]
+
+dtab <- data.table::dcast(dtab, year + method ~ variable, value.var = "value")
+
+dtab$interval <- c(paste(dtab$year-5, dtab$year, sep = " - ")[-1], NA)
+
+colnames(dtab) <- c("Census year", "method", "AWP", "AWM", "AGB", "deltaAGB", "Census interval")
+
+dtab <- dtab[ , c("Census year", "Census interval", "AGB", "deltaAGB", "AWP", "AWM")]
+
+setorder(dtab, `Census year`, `Census interval`)
+
+write.csv(dtab, file = "stables/table-globcomparison.csv", row.names = FALSE)
+```
+
+``
 ## References

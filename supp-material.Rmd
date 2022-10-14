@@ -87,6 +87,7 @@ names(census_list) <- data.table::tstrsplit(bci_stem, "\\.")[[2]]
 
 # 4. compile as one data table
 df_stem <- data.table::rbindlist(census_list, fill = TRUE, idcol = "censusID")
+rm(census_list)
 ```
 
 Each individual stem was identified to the lowest taxonomic level possible (100% genus; 98% species; 3% subspecies) and was given a species code (`sp`). An independent species table (`bci.spptable`) contains all the taxonomic detail for each species code (species Latin name, family, subspecies when relevant, wood specific gravity).
@@ -679,8 +680,9 @@ df_species_agb <-
     "sp",
     area = 50,
     nboot = 1000,
-    kohyama = FALSE
+    kohyama = use_kohyama19_correction
   )
+df_species_agb$method <- "chave14_h+subs"
 
 df_species_ba <-
   aggregate_agb_dyn(
@@ -688,8 +690,9 @@ df_species_ba <-
     "sp",
     area = 50,
     nboot = 1000,
-    kohyama = FALSE
+    kohyama = use_kohyama19_correction
   )
+df_species_ba$method <- "ba+subs"
 
 df_species_n <-
   aggregate_agb_dyn(
@@ -699,6 +702,7 @@ df_species_n <-
     nboot = 1000,
     kohyama = FALSE
   )
+df_species_n$method <- "n"
 
 df_species_n10 <-
   aggregate_agb_dyn(
@@ -708,6 +712,7 @@ df_species_n10 <-
     nboot = 1000,
     kohyama = FALSE
   )
+df_species_n10$method <- "n10"
 
 df_species <- rbind(df_species_agb, df_species_ba, df_species_n, df_species_n10)
 ``` 
@@ -853,7 +858,14 @@ df_stem_habitat <- merge(df_stem_melt[method == "chave14_h+subs"],
                          bci_habitat[, c("q20", "habitat")], by = "q20", all.x = TRUE)
 
 # aggregate, unit area = area of a quadrat (in ha)
-df_hab <- aggregate_agb_dyn(data = df_stem_habitat, "habitat", area = 0.04, nboot = 10)
+df_hab <-
+  aggregate_agb_dyn(
+    data = df_stem_habitat,
+    "habitat",
+    area = 0.04,
+    nboot = 10,
+    kohyama = use_kohyama19_correction
+  )
 df_hab <- subset(df_hab, !is.na(habitat))
 
 # divide by number of quadrats in each habitat
